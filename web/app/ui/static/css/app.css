@@ -3,10 +3,10 @@
 .htmx-request .htmx-indicator, .htmx-request.htmx-indicator { display: inline-block; }
 .htmx-request .htmx-hide-while-loading { display: none; }
 
-#toasts { position: fixed; bottom: 1rem; right: 1rem; z-index: 50; display: flex; flex-direction: column; gap: 0.5rem; max-width: 22rem; }
+#toasts { position: fixed; top: 1rem; right: 1rem; z-index: 50; display: flex; flex-direction: column; gap: 0.5rem; max-width: 22rem; }
 .toast { box-shadow: var(--shadow-pop); animation: toast-in var(--motion-fast) ease-out; }
-.toast.toast-out { opacity: 0; transform: translateY(0.25rem); transition: all var(--motion-base) ease-in; }
-@keyframes toast-in { from { opacity: 0; transform: translateY(0.5rem); } to { opacity: 1; transform: none; } }
+.toast.toast-out { opacity: 0; transform: translateY(-0.25rem); transition: all var(--motion-base) ease-in; }
+@keyframes toast-in { from { opacity: 0; transform: translateY(-0.5rem); } to { opacity: 1; transform: none; } }
 
 details.menu > summary { list-style: none; cursor: pointer; }
 details.menu > summary::-webkit-details-marker { display: none; }
