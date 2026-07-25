@@ -1,0 +1,44 @@
+{% extends "layouts/admin.html" %}
+{% import "components/primitives.html" as ui %}
+{% block title %}Orders — Admin — {{ store_name }}{% endblock %}
+{% block content %}
+<h1 class="mb-6 text-2xl font-bold">Orders</h1>
+
+<div class="mb-6 flex flex-wrap gap-2">
+  {% for value, label in [("", "All"), ("paid", "Paid"), ("shipped", "Shipped"), ("delivered", "Delivered"), ("cancelled", "Cancelled")] %}
+  <a href="/admin/orders{{ '?status=' ~ value if value }}"
+     class="rounded-el border px-3 py-1.5 text-sm {{ 'border-brand bg-brand-subtle font-medium text-brand' if status == value else 'border-border bg-surface text-ink-muted hover:border-brand hover:text-brand' }}">
+    {{ label }}
+    <span class="text-xs text-ink-faint">{{ counts.get(value, total_all) if value else total_all }}</span>
+  </a>
+  {% endfor %}
+</div>
+
+{% if orders %}
+<div class="overflow-x-auto rounded-card border border-border bg-surface shadow-card">
+  <table class="w-full min-w-[46rem] text-sm">
+    <thead>
+      <tr class="border-b border-border text-left text-xs uppercase tracking-wide text-ink-faint">
+        <th class="px-4 py-3 font-medium">Order</th>
+        <th class="px-4 py-3 font-medium">Customer</th>
+        <th class="px-4 py-3 font-medium">Placed</th>
+        <th class="px-4 py-3 font-medium">Items</th>
+        <th class="px-4 py-3 font-medium">Total</th>
+        <th class="px-4 py-3 font-medium">Status</th>
+        <th class="px-4 py-3 text-right font-medium">Action</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-border">
+      {% for order in orders %}
+      {% include "partials/admin/order_row.html" %}
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% with base_url = "/admin/orders" %}
+{% include "components/pagination.html" %}
+{% endwith %}
+{% else %}
+{{ ui.empty_state("No orders here", "Orders will appear as customers check out.") }}
+{% endif %}
+{% endblock %}

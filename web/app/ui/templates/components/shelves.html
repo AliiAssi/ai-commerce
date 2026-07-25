@@ -1,0 +1,8 @@
+{% import "components/primitives.html" as ui %}
+{# The shelf directory, lazy-loaded into the footer of every page via
+   GET /partials/shelves — so the layout never needs category data from
+   whichever controller rendered it. #}
+{% for category in categories %}
+{{ ui.footer_link(category.name, "/catalog?category=" ~ category.slug, category.product_count) }}
+{% endfor %}
+{{ ui.footer_link("Everything", "/catalog") }}

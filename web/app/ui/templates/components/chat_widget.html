@@ -1,0 +1,150 @@
+{# "Ask the store" chat widget. Streams from the AI service via the same-origin
+   proxy at /api/v1/ai/chat. All colors/radii/shadows come from tokens.css via the Tailwind
+   theme map — no hardcoded design values. Behavior lives in static/js/chat.js. #}
+<div id="chat-widget"
+     data-authenticated="{{ 'true' if user else 'false' }}"
+     class="fixed bottom-4 right-4 z-50 sm:bottom-5 sm:right-5">
+
+  <button id="chat-launcher" type="button" aria-expanded="false" aria-controls="chat-panel"
+          aria-label="Open the store assistant"
+          class="block h-14 w-14 overflow-hidden rounded-full bg-brand shadow-pop transition-transform duration-fast hover:scale-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2">
+    {# the badge artwork is a theme token (--asset-assistant), so it follows the toggle #}
+    <span class="block h-full w-full rounded-full bg-assistant bg-cover bg-center"></span>
+  </button>
+
+  <section id="chat-panel" role="dialog" aria-label="Store assistant"
+           class="chat-panel pointer-events-none absolute bottom-0 right-0 flex h-[600px] max-h-[calc(100dvh-2rem)] w-[380px] max-w-[calc(100vw-2rem)] translate-y-3 flex-col overflow-hidden rounded-card border border-border bg-surface opacity-0 shadow-pop transition-all duration-fast max-sm:fixed max-sm:inset-0 max-sm:h-[100dvh] max-sm:max-h-none max-sm:w-screen max-sm:max-w-none max-sm:rounded-none">
+
+    <header class="flex items-center gap-3 border-b border-border bg-surface px-4 py-3">
+      <span class="block h-9 w-9 shrink-0 overflow-hidden rounded-full bg-brand">
+        <span class="block h-full w-full rounded-full bg-assistant bg-cover bg-center"></span>
+      </span>
+      <span class="min-w-0 flex-1">
+        <span class="flex items-center gap-1.5 font-serif text-base text-ink">
+          BEIT's Assistant
+          <span class="inline-block h-2 w-2 rounded-full bg-success" title="online"></span>
+        </span>
+        <span class="block truncate text-xs text-ink-muted">Ask about products &amp; orders</span>
+      </span>
+      <button id="chat-reset" type="button" aria-label="Start a new chat"
+              class="rounded-el p-1.5 text-ink-muted transition-colors hover:bg-surface-alt hover:text-brand">
+        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M3 12a9 9 0 1 1 3 6.7L3 16"/><path d="M3 21v-5h5"/>
+        </svg>
+      </button>
+      <button id="chat-close" type="button" aria-label="Close chat"
+              class="rounded-el p-1.5 text-ink-muted transition-colors hover:bg-surface-alt hover:text-ink">
+        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M18 6 6 18M6 6l12 12"/>
+        </svg>
+      </button>
+    </header>
+
+    <div id="chat-messages" aria-live="polite" aria-atomic="false"
+         class="flex-1 space-y-3 overflow-y-auto bg-surface-alt px-4 py-4">
+      <div id="chat-empty" class="space-y-4">
+        <div class="rounded-card bg-surface p-4 text-sm text-ink-muted shadow-card">
+          <p class="font-serif text-base text-ink">Ask about anything on the shelves.</p>
+          <p class="mt-1">Comparisons, recommendations, where a product comes from{% if user %}, or where your order is{% endif %}.</p>
+        </div>
+        <div class="flex flex-wrap gap-2" id="chat-suggestions">
+          <button type="button" class="chat-chip" data-prompt="What is best rated right now?">Best rated</button>
+          <button type="button" class="chat-chip" data-prompt="Recommend a gift under $50">Gift under $50</button>
+          {% if user %}
+          <button type="button" class="chat-chip" data-prompt="Where is my most recent order?">Track my order</button>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <form id="chat-form" class="border-t border-border bg-surface px-3 py-3">
+      {% if not user %}
+      <p class="mb-2 px-1 text-xs text-ink-muted">
+        <a href="/login" class="text-brand hover:underline">Log in</a> to ask about your orders.
+      </p>
+      {% endif %}
+      <div class="flex items-end gap-2">
+        <textarea id="chat-input" rows="1" maxlength="2000" enterkeyhint="send"
+                  placeholder="Ask anything about the store…"
+                  class="max-h-32 flex-1 resize-none rounded-el border border-border bg-surface-alt px-3 py-2 text-sm text-ink placeholder:text-ink-faint focus:border-brand focus:outline-none"></textarea>
+        <button id="chat-send" type="submit" aria-label="Send message" disabled
+                class="grid h-10 w-10 shrink-0 place-items-center rounded-el bg-brand text-brand-contrast transition-colors hover:bg-brand-hover disabled:opacity-40 disabled:cursor-not-allowed">
+          <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M22 2 11 13M22 2l-7 20-4-9-9-4z"/>
+          </svg>
+        </button>
+      </div>
+    </form>
+  </section>
+</div>
+
+<style>
+  /* open state (toggled by chat.js) */
+  #chat-widget.is-open #chat-launcher { display: none; }
+  #chat-widget.is-open .chat-panel {
+    pointer-events: auto; opacity: 1; transform: translateY(0);
+  }
+  /* suggestion chips — colors via tokens, shape via utility classes */
+  .chat-chip {
+    border-radius: var(--radius-el);
+    border: 1px solid rgb(var(--c-border));
+    background: rgb(var(--c-surface));
+    color: rgb(var(--c-ink-muted));
+    padding: 0.375rem 0.75rem;
+    font-size: 0.8125rem;
+    transition: color .15s, border-color .15s;
+  }
+  .chat-chip:hover { color: rgb(var(--c-brand)); border-color: rgb(var(--c-brand)); }
+  .chat-md > :first-child { margin-top: 0; }
+  .chat-md > :last-child { margin-bottom: 0; }
+  .chat-md p, .chat-md ul, .chat-md ol, .chat-md pre,
+  .chat-md blockquote, .chat-md table { margin: 0.5rem 0; }
+  .chat-md ul { list-style: disc; }
+  .chat-md ol { list-style: decimal; }
+  .chat-md ul, .chat-md ol { padding-left: 1.25rem; }
+  .chat-md li { margin: 0.125rem 0; }
+  .chat-md li > ul, .chat-md li > ol { margin: 0.125rem 0; }
+  .chat-md h1, .chat-md h2, .chat-md h3, .chat-md h4 { font-weight: 600; margin: 0.75rem 0 0.25rem; }
+  .chat-md h1 { font-size: 1.05rem; }
+  .chat-md h2 { font-size: 1rem; }
+  .chat-md h3, .chat-md h4 { font-size: 0.9375rem; }
+  .chat-md a { color: rgb(var(--c-brand)); text-decoration: underline; }
+  .chat-md a:hover { color: rgb(var(--c-brand-hover)); }
+  .chat-md code {
+    background: rgb(var(--c-sunk)); border-radius: var(--radius-el);
+    padding: 0.0625rem 0.25rem; font-size: 0.8125rem;
+  }
+  .chat-md pre {
+    background: rgb(var(--c-sunk)); border-radius: var(--radius-el);
+    padding: 0.5rem 0.75rem; overflow-x: auto;
+  }
+  .chat-md pre code { background: none; padding: 0; }
+  .chat-md blockquote {
+    border-left: 2px solid rgb(var(--c-border));
+    padding-left: 0.75rem; color: rgb(var(--c-ink-muted));
+  }
+  .chat-md table { display: block; overflow-x: auto; border-collapse: collapse; font-size: 0.8125rem; }
+  .chat-md th, .chat-md td { border: 1px solid rgb(var(--c-border)); padding: 0.25rem 0.5rem; }
+  .chat-md th { background: rgb(var(--c-surface-alt)); }
+  .chat-md hr { border-color: rgb(var(--c-border)); margin: 0.75rem 0; }
+  .chat-caret::after {
+    content: "▋"; margin-left: 1px; color: rgb(var(--c-ink-faint));
+    animation: chat-blink 1s steps(2, start) infinite;
+  }
+  @keyframes chat-blink { to { visibility: hidden; } }
+  .chat-typing span {
+    display: inline-block; width: 6px; height: 6px; margin: 0 1px;
+    border-radius: 9999px; background: rgb(var(--c-ink-faint));
+    animation: chat-bounce 1.2s infinite ease-in-out both;
+  }
+  .chat-typing span:nth-child(1) { animation-delay: -0.24s; }
+  .chat-typing span:nth-child(2) { animation-delay: -0.12s; }
+  @keyframes chat-bounce { 0%, 80%, 100% { transform: scale(0.6); opacity: .5; } 40% { transform: scale(1); opacity: 1; } }
+  @media (prefers-reduced-motion: reduce) {
+    .chat-panel { transition: none; }
+    .chat-caret::after, .chat-typing span { animation: none; }
+  }
+</style>

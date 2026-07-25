@@ -1,0 +1,50 @@
+envVarGroups:
+  - name: ai-commerce-shared
+    envVars:
+      - key: INTERNAL_API_KEY
+        generateValue: true
+
+services:
+  - type: web
+    name: ai-commerce-web
+    runtime: python
+    plan: free
+    rootDir: web
+    buildCommand: pip install uv && uv sync --frozen
+    startCommand: uv run alembic upgrade head && uv run uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /healthz
+    envVars:
+      - fromGroup: ai-commerce-shared
+      - key: ENVIRONMENT
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: AI_SERVICE_URL
+        sync: false
+
+  - type: web
+    name: ai-commerce-ai
+    runtime: python
+    plan: free
+    rootDir: ai
+    buildCommand: pip install uv && uv sync --frozen
+    startCommand: uv run alembic upgrade head && uv run uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /healthz
+    envVars:
+      - fromGroup: ai-commerce-shared
+      - key: ENVIRONMENT
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: LLM_PROVIDER
+        value: ollama
+      - key: OLLAMA_API_KEY
+        sync: false
+      - key: OLLAMA_MODEL
+        value: gemma4:31b-cloud
+      - key: MCP_BEARER_TOKEN
+        sync: false
+      - key: LLM_TIMEOUT_SECONDS
+        value: "60"

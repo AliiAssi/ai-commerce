@@ -1,0 +1,43 @@
+{% extends "layouts/admin.html" %}
+{% import "components/primitives.html" as ui %}
+{% block title %}Products — Admin — {{ store_name }}{% endblock %}
+{% block content %}
+<div class="mb-6 flex flex-wrap items-center justify-between gap-3">
+  <h1 class="text-2xl font-bold">Products</h1>
+  {{ ui.button("New product", href="/admin/products/new") }}
+</div>
+
+<form action="/admin/products" method="get"
+      class="mb-6 grid items-end gap-3 rounded-card border border-border bg-surface p-4 shadow-card sm:grid-cols-2 lg:grid-cols-5">
+  {{ ui.field("q", "Search", type="search", value=q, placeholder="Name or description") }}
+  {{ ui.select_field("category", "Category", category_options, category) }}
+  {{ ui.select_field("status", "Status", [("all", "All"), ("active", "Active"), ("archived", "Archived"), ("low", "Low stock")], status) }}
+  <div class="lg:col-span-2">{{ ui.button("Filter") }}</div>
+</form>
+
+{% if products %}
+<div class="overflow-x-auto rounded-card border border-border bg-surface shadow-card">
+  <table class="w-full min-w-[42rem] text-sm">
+    <thead>
+      <tr class="border-b border-border text-left text-xs uppercase tracking-wide text-ink-faint">
+        <th class="px-4 py-3 font-medium">Product</th>
+        <th class="px-4 py-3 font-medium">Price</th>
+        <th class="px-4 py-3 font-medium">Stock</th>
+        <th class="px-4 py-3 font-medium">Status</th>
+        <th class="px-4 py-3 text-right font-medium">Actions</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-border">
+      {% for product in products %}
+      {% include "partials/admin/product_row.html" %}
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% with base_url = "/admin/products" %}
+{% include "components/pagination.html" %}
+{% endwith %}
+{% else %}
+{{ ui.empty_state("No products match", "Try different filters.", "Clear filters", "/admin/products") }}
+{% endif %}
+{% endblock %}

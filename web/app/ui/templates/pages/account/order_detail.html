@@ -1,0 +1,42 @@
+{% extends "layouts/base.html" %}
+{% import "components/primitives.html" as ui %}
+{% block title %}Order #{{ order.id }} — {{ store_name }}{% endblock %}
+{% block content %}
+<div class="mx-auto max-w-2xl">
+  <a href="/account/orders" class="text-sm text-ink-muted hover:text-brand">&larr; My orders</a>
+
+  <div class="mt-4 flex flex-wrap items-center gap-3">
+    <h1 class="text-2xl font-bold">Order #{{ order.id }}</h1>
+    {{ ui.status_badge(order.status.value) }}
+  </div>
+  <p class="mt-1 text-sm text-ink-muted">
+    Placed {{ order.created_at.strftime("%b %d, %Y at %H:%M") }}
+    {% if order.updated_at != order.created_at %}
+    &middot; updated {{ order.updated_at.strftime("%b %d, %Y at %H:%M") }}
+    {% endif %}
+  </p>
+
+  <ul class="mt-6 divide-y divide-border rounded-card border border-border bg-surface shadow-card">
+    {% for item in order.items %}
+    <li class="flex items-center justify-between gap-4 p-4">
+      <div>
+        <a href="/products/{{ item.product_id }}" class="font-medium hover:text-brand">{{ item.product_name }}</a>
+        <p class="text-xs text-ink-muted">{{ item.quantity }} &times; {{ ui.price(item.unit_price, "sm") }}</p>
+      </div>
+      {{ ui.price(item.line_total, "sm") }}
+    </li>
+    {% endfor %}
+    <li class="flex items-center justify-between p-4">
+      <span class="font-semibold">Total</span>{{ ui.price(order.total, "lg") }}
+    </li>
+  </ul>
+
+  {% if order.status.value == "paid" %}
+  <form action="/account/orders/{{ order.id }}/cancel" method="post" class="mt-6"
+        onsubmit="return confirm('Cancel this order? Stock will be restored.')">
+    {{ ui.button("Cancel order", variant="danger-outline") }}
+    <p class="mt-2 text-xs text-ink-faint">Orders can be cancelled until they ship.</p>
+  </form>
+  {% endif %}
+</div>
+{% endblock %}

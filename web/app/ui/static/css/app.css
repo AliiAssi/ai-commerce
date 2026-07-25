@@ -1,0 +1,59 @@
+
+.htmx-indicator { display: none; }
+.htmx-request .htmx-indicator, .htmx-request.htmx-indicator { display: inline-block; }
+.htmx-request .htmx-hide-while-loading { display: none; }
+
+#toasts { position: fixed; bottom: 1rem; right: 1rem; z-index: 50; display: flex; flex-direction: column; gap: 0.5rem; max-width: 22rem; }
+.toast { box-shadow: var(--shadow-pop); animation: toast-in var(--motion-fast) ease-out; }
+.toast.toast-out { opacity: 0; transform: translateY(0.25rem); transition: all var(--motion-base) ease-in; }
+@keyframes toast-in { from { opacity: 0; transform: translateY(0.5rem); } to { opacity: 1; transform: none; } }
+
+details.menu > summary { list-style: none; cursor: pointer; }
+details.menu > summary::-webkit-details-marker { display: none; }
+
+/* a summary can carry two icons; only the one matching the open state shows */
+details.menu > summary .when-open { display: none; }
+details.menu[open] > summary .when-open { display: block; }
+details.menu[open] > summary .when-closed { display: none; }
+
+a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+  outline: 2px solid rgb(var(--c-brand) / 0.7);
+  outline-offset: 2px;
+}
+
+.mask { overflow: hidden; }
+.mask > span {
+  display: block;
+  animation: rise-in var(--motion-plate) var(--ease-rise) both;
+  animation-delay: calc(120ms + var(--i, 0) * 110ms);
+}
+@keyframes rise-in { from { transform: translateY(105%); } to { transform: translateY(0); } }
+
+.plate-art {
+  filter: grayscale(1) contrast(0.92);
+  opacity: 0.82;
+  transition: filter var(--motion-slow) var(--ease-soft),
+              opacity var(--motion-slow) var(--ease-soft),
+              transform var(--motion-plate) var(--ease-soft);
+}
+.plate:hover .plate-art,
+.plate:focus-within .plate-art { filter: none; opacity: 1; transform: scale(1.035); }
+
+/* the quick-add control only surfaces on intent */
+.plate-add { opacity: 0; transform: translateY(0.375rem); transition: opacity var(--motion-fast), transform var(--motion-fast); }
+.plate:hover .plate-add,
+.plate:focus-within .plate-add { opacity: 1; transform: none; }
+
+.reveal { opacity: 0; transform: translateY(1.25rem); }
+.reveal.in {
+  opacity: 1;
+  transform: none;
+  transition: opacity var(--motion-slow) var(--ease-soft), transform var(--motion-slow) var(--ease-soft);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+  .reveal { opacity: 1; transform: none; }
+  .plate-art { filter: none; opacity: 1; }
+  .plate-add { opacity: 1; transform: none; }
+}

@@ -1,0 +1,31 @@
+{% extends "layouts/admin.html" %}
+{% import "components/primitives.html" as ui %}
+{% block title %}{{ "Edit product" if product else "New product" }} — Admin — {{ store_name }}{% endblock %}
+{% block content %}
+<div class="mx-auto max-w-2xl">
+  <a href="/admin/products" class="text-sm text-ink-muted hover:text-brand">&larr; Products</a>
+  <h1 class="mb-6 mt-2 text-2xl font-bold">{{ "Edit: " ~ product.name if product else "New product" }}</h1>
+
+  <form action="{{ '/admin/products/' ~ product.id ~ '/edit' if product else '/admin/products/new' }}" method="post"
+        class="space-y-4 rounded-card border border-border bg-surface p-6 shadow-card">
+    {{ ui.field("name", "Name", value=product.name if product else "", required=true, attrs='maxlength="200"') }}
+    {{ ui.select_field("category_id", "Category", category_options, product.category_id if product else "") }}
+    <div class="grid gap-4 sm:grid-cols-2">
+      {{ ui.field("price", "Price ($)", type="number", value=product.price if product else "", required=true, attrs='min="0.01" step="0.01"') }}
+      {% if not product %}
+      {{ ui.field("stock", "Initial stock", type="number", value="0", required=true, attrs='min="0" step="1"') }}
+      {% endif %}
+    </div>
+    {{ ui.field("origin", "Origin", value=product.origin or "" if product else "", placeholder="e.g. Koura, North Lebanon", attrs='maxlength="80"') }}
+    {{ ui.field("image_url", "Image URL", value=product.image_url or "" if product else "", placeholder="https://…", attrs='maxlength="500"') }}
+    {{ ui.textarea_field("description", "Description", rows=5, value=product.description if product else "", required=true) }}
+    <div class="flex items-center gap-3">
+      {{ ui.button("Save product") }}
+      {{ ui.button("Cancel", variant="secondary", href="/admin/products") }}
+    </div>
+    {% if product %}
+    <p class="text-xs text-ink-faint">Stock is adjusted from the product list, so every change is audited.</p>
+    {% endif %}
+  </form>
+</div>
+{% endblock %}

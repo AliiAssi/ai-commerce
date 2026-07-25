@@ -1,0 +1,44 @@
+{% import "components/primitives.html" as ui %}
+<tr id="prow-{{ product.id }}" class="{{ 'opacity-60' if product.is_archived }}">
+  <td class="px-4 py-3">
+    <div class="flex items-center gap-3">
+      <img src="{{ product.image_url or '/static/img/placeholder.svg' }}" alt=""
+           class="h-10 w-10 rounded-el bg-surface-alt object-cover"
+           onerror="this.onerror=null;this.src='/static/img/placeholder.svg'">
+      <div class="min-w-0">
+        <a href="/admin/products/{{ product.id }}/edit" class="block truncate font-medium hover:text-brand">{{ product.name }}</a>
+        <span class="text-xs text-ink-faint">#{{ product.id }} &middot; {{ product.category_name }}</span>
+      </div>
+    </div>
+  </td>
+  <td class="px-4 py-3">{{ ui.price(product.price, "sm") }}</td>
+  <td class="px-4 py-3">
+    <div class="flex items-center gap-2">
+      <button hx-post="/admin/products/{{ product.id }}/stock" hx-vals='{"delta": -1}'
+              hx-target="#prow-{{ product.id }}" hx-swap="outerHTML"
+              class="h-7 w-7 rounded-el border border-border text-ink-muted hover:border-brand hover:text-brand"
+              {% if product.stock == 0 %}disabled{% endif %}>&minus;</button>
+      <span class="w-10 text-center text-sm font-medium">{{ product.stock }}</span>
+      <button hx-post="/admin/products/{{ product.id }}/stock" hx-vals='{"delta": 1}'
+              hx-target="#prow-{{ product.id }}" hx-swap="outerHTML"
+              class="h-7 w-7 rounded-el border border-border text-ink-muted hover:border-brand hover:text-brand">+</button>
+      {{ ui.stock_badge(product.stock) }}
+    </div>
+  </td>
+  <td class="px-4 py-3">
+    {% if product.is_archived %}{{ ui.badge("Archived", "warning") }}{% else %}{{ ui.badge("Active", "success") }}{% endif %}
+  </td>
+  <td class="px-4 py-3">
+    <div class="flex items-center justify-end gap-2">
+      {{ ui.button("Edit", variant="secondary", size="sm", href="/admin/products/" ~ product.id ~ "/edit") }}
+      {% if product.is_archived %}
+      {{ ui.button("Unarchive", variant="ghost", size="sm", type="button",
+                   attrs='hx-post="/admin/products/' ~ product.id ~ '/unarchive" hx-target="#prow-' ~ product.id ~ '" hx-swap="outerHTML"') }}
+      {% else %}
+      {{ ui.button("Archive", variant="danger-outline", size="sm", type="button",
+                   attrs='hx-post="/admin/products/' ~ product.id ~ '/archive" hx-target="#prow-' ~ product.id ~ '" hx-swap="outerHTML"') }}
+      {% endif %}
+    </div>
+  </td>
+</tr>
+{% if toast_message %}{{ ui.toast(toast_message, "success", oob=true) }}{% endif %}

@@ -1,0 +1,35 @@
+{% extends "layouts/base.html" %}
+{% import "components/primitives.html" as ui %}
+{% block title %}Checkout — {{ store_name }}{% endblock %}
+{% block content %}
+<h1 class="mb-6 text-2xl font-bold">Checkout</h1>
+<div class="grid items-start gap-6 lg:grid-cols-[1fr_20rem]">
+  <ul class="divide-y divide-border rounded-card border border-border bg-surface shadow-card">
+    {% for item in cart.items %}
+    <li class="flex items-center gap-4 p-4">
+      <img src="{{ item.image_url or '/static/img/placeholder.svg' }}" alt=""
+           class="h-12 w-12 rounded-el bg-surface-alt object-cover"
+           onerror="this.onerror=null;this.src='/static/img/placeholder.svg'">
+      <div class="min-w-0 flex-1">
+        <p class="font-medium">{{ item.product_name }}</p>
+        <p class="text-xs text-ink-muted">{{ item.quantity }} &times; {{ ui.price(item.unit_price, "sm") }}</p>
+      </div>
+      {{ ui.price(item.line_total, "sm") }}
+    </li>
+    {% endfor %}
+  </ul>
+  <aside class="space-y-4 rounded-card border border-border bg-surface p-5 shadow-card">
+    <h2 class="font-semibold">Payment</h2>
+    <div class="flex items-center justify-between border-t border-border pt-3">
+      <span class="font-medium">Total</span>{{ ui.price(cart.grand_total, "lg") }}
+    </div>
+    <div class="rounded-el border border-border bg-surface-alt px-3 py-2 text-xs text-ink-muted">
+      This demo store uses an <strong>instant fake payment</strong> — placing the order marks it as paid immediately, nothing is charged.
+    </div>
+    <form action="/checkout" method="post">
+      {{ ui.button("Place order", size="lg", block=true) }}
+    </form>
+    <a href="/cart" class="block text-center text-sm text-ink-muted hover:text-brand">&larr; Back to cart</a>
+  </aside>
+</div>
+{% endblock %}

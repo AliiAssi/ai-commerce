@@ -1,0 +1,15 @@
+{% import "components/primitives.html" as ui %}
+<div id="product-grid">
+  {% if products %}
+  <div class="grid grid-cols-1 gap-x-7 gap-y-10 sm:grid-cols-2 xl:grid-cols-3">
+    {% for product in products %}
+    {{ ui.plate(product) }}
+    {% endfor %}
+  </div>
+  {% with base_url = "/catalog", target = "#product-grid" %}
+  {% include "components/pagination.html" %}
+  {% endwith %}
+  {% else %}
+  {{ ui.empty_state("Nothing on this shelf", "Try different words, or widen the price range.", "Browse everything", "/catalog") }}
+  {% endif %}
+</div>

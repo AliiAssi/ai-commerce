@@ -1,0 +1,17 @@
+{% extends "layouts/base.html" %}
+{% import "components/primitives.html" as ui %}
+{% block title %}Create account — {{ store_name }}{% endblock %}
+{% block content %}
+<div class="mx-auto max-w-sm">
+  <form action="/register" method="post" class="space-y-4 rounded-card border border-border bg-surface p-6 shadow-card">
+    <h1 class="text-xl font-bold">Create your account</h1>
+    <input type="hidden" name="next" value="{{ next }}">
+    {{ ui.field("email", "Email", type="email", required=true, attrs='autocomplete="email"') }}
+    {{ ui.field("password", "Password", type="password", required=true, placeholder="At least 8 characters", attrs='autocomplete="new-password" minlength="8" maxlength="72"') }}
+    {{ ui.button("Sign up", block=true) }}
+    <p class="text-center text-sm text-ink-muted">
+      Already have an account? <a href="/login?next={{ next }}" class="text-brand hover:underline">Log in</a>
+    </p>
+  </form>
+</div>
+{% endblock %}

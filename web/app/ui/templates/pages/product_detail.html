@@ -1,0 +1,81 @@
+{% extends "layouts/base.html" %}
+{% import "components/primitives.html" as ui %}
+{% block title %}{{ product.name }} — {{ store_name }}{% endblock %}
+{% block content %}
+<nav class="mb-8 text-sm text-ink-muted" aria-label="Breadcrumb">
+  <a href="/" class="hover:text-brand">Home</a>
+  <span class="text-ink-faint">/</span>
+  <a href="/catalog?category={{ product.category_slug }}" class="hover:text-brand">{{ product.category_name }}</a>
+  <span class="text-ink-faint">/</span>
+  <span class="text-ink">{{ product.name }}</span>
+</nav>
+
+<div class="grid gap-14 lg:grid-cols-[1.05fr_0.95fr] lg:items-start">
+  <div class="overflow-hidden rounded-card border border-border bg-surface-sunk">
+    <img src="{{ product.image_url or '/static/img/placeholder.svg' }}" alt="{{ product.name }}"
+         class="aspect-square w-full object-cover"
+         onerror="this.onerror=null;this.src='/static/img/placeholder.svg'">
+  </div>
+
+  <div class="flex flex-col gap-6">
+    <div class="flex flex-col gap-3">
+      {{ ui.label(product.category_name ~ (" · " ~ product.origin if product.origin else "")) }}
+      <h1 class="font-serif text-title leading-[1.08] tracking-tight">{{ product.name }}</h1>
+      {{ ui.stars(product.rating_avg, product.review_count) }}
+    </div>
+
+    {{ ui.price(product.price, "xl") }}
+    <p class="max-w-[60ch] leading-relaxed text-ink-muted">{{ product.description }}</p>
+
+    {% if product.stock > 0 %}
+    <form hx-post="/cart/items" hx-swap="none" class="flex items-center gap-4 pt-1">
+      <input type="hidden" name="product_id" value="{{ product.id }}">
+      <input type="number" name="quantity" value="1" min="1" max="{{ product.stock }}" aria-label="Quantity"
+             class="w-20 rounded-el border border-border bg-surface px-3 py-2.5 text-center text-sm focus:border-brand focus:outline-none">
+      {{ ui.button("Add to bag", size="lg") }}
+      {{ ui.spinner() }}
+      {% if product.stock <= 5 %}{{ ui.label("Only " ~ product.stock ~ " left") }}{% endif %}
+    </form>
+    {% else %}
+    <p class="text-sm text-danger">Sold out — check back soon.</p>
+    {% endif %}
+
+    {# The AI review summary lands here once the assistant can produce one. Until then
+       the section simply does not exist, rather than showing an empty box. #}
+    {% if review_summary %}
+    {% include "components/ai_review_summary.html" %}
+    {% endif %}
+
+    {% if product.origin %}
+    <dl class="grid grid-cols-[8rem_1fr] gap-x-4 gap-y-3 border-t border-border pt-5 text-sm">
+      <dt class="text-ink-faint">Origin</dt><dd class="m-0">{{ product.origin }}</dd>
+      <dt class="text-ink-faint">Category</dt><dd class="m-0">{{ product.category_name }}</dd>
+    </dl>
+    {% endif %}
+  </div>
+</div>
+
+<section class="mt-20 max-w-3xl">
+  <h2 class="mb-6 font-serif text-2xl">Reviews <span class="text-ink-faint">({{ product.review_count }})</span></h2>
+  {% include "components/review_list.html" %}
+  <div class="mt-8">
+    {% if user %}
+    <form action="/products/{{ product.id }}/reviews" method="post"
+          class="flex flex-col gap-4 rounded-card border border-border bg-surface p-6">
+      <h3 class="font-serif text-lg">Write a review</h3>
+      {{ ui.select_field("rating", "Rating", [("5", "5 — Excellent"), ("4", "4 — Good"), ("3", "3 — Okay"), ("2", "2 — Poor"), ("1", "1 — Terrible")], "5") }}
+      {{ ui.textarea_field("text", "Your review", placeholder="What should other shoppers know?", required=true) }}
+      <div class="flex items-center gap-4">
+        {{ ui.button("Submit review") }}
+        {{ ui.label("Verified purchasers only") }}
+      </div>
+    </form>
+    {% else %}
+    <p class="text-sm text-ink-muted">
+      <a href="/login?next=/products/{{ product.id }}" class="text-brand hover:underline">Log in</a>
+      to review this product.
+    </p>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

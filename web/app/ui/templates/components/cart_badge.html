@@ -1,0 +1,10 @@
+{% import "components/primitives.html" as ui %}
+<a href="/cart" id="cart-badge" {% if oob %}hx-swap-oob="true"{% endif %}
+   aria-label="Cart{% if count %} ({{ count }} item{{ '' if count == 1 else 's' }}){% endif %}"
+   class="relative grid h-9 w-9 place-items-center rounded-el text-ink-muted transition-colors hover:text-brand">
+  {{ ui.icon("bag", "h-5 w-5") }}
+  {% if count %}
+  <span aria-hidden="true"
+        class="absolute end-0 top-0 min-w-[1.125rem] rounded-full bg-brand px-1 text-center text-[0.625rem] font-semibold leading-[1.125rem] text-brand-contrast">{{ count }}</span>
+  {% endif %}
+</a>

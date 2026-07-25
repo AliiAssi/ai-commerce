@@ -1,0 +1,88 @@
+{% extends "layouts/admin.html" %}
+{% import "components/primitives.html" as ui %}
+{% block title %}Dashboard — Admin — {{ store_name }}{% endblock %}
+{% block content %}
+<h1 class="mb-6 text-2xl font-bold">Dashboard</h1>
+
+<div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+  {{ ui.stat_card("Revenue", "$%.2f"|format(stats.revenue), "non-cancelled orders") }}
+  {{ ui.stat_card("Orders", stats.orders_total) }}
+  {{ ui.stat_card("Active products", stats.active_product_count, "of " ~ stats.product_count ~ " total") }}
+  {{ ui.stat_card("Customers", stats.customer_count) }}
+</div>
+
+<div class="mt-4 flex flex-wrap gap-2">
+  {% for status in ["paid", "shipped", "delivered", "cancelled"] %}
+  <a href="/admin/orders?status={{ status }}" class="inline-flex items-center gap-2 rounded-el border border-border bg-surface px-3 py-1.5 text-sm hover:border-brand">
+    {{ ui.status_badge(status) }} <span class="font-semibold">{{ stats.orders_by_status.get(status, 0) }}</span>
+  </a>
+  {% endfor %}
+</div>
+
+<div class="mt-8 grid items-start gap-6 xl:grid-cols-2">
+  <section class="rounded-card border border-border bg-surface shadow-card">
+    <div class="flex items-center justify-between border-b border-border px-5 py-4">
+      <h2 class="font-semibold">Low stock</h2>
+      <a href="/admin/products?status=low" class="text-sm text-brand hover:underline">View all</a>
+    </div>
+    {% if stats.low_stock %}
+    <ul class="divide-y divide-border">
+      {% for product in stats.low_stock %}
+      <li class="flex items-center gap-3 px-5 py-3">
+        <a href="/admin/products/{{ product.id }}/edit" class="min-w-0 flex-1 truncate font-medium hover:text-brand">{{ product.name }}</a>
+        {{ ui.stock_badge(product.stock) }}
+        <form action="/admin/products/{{ product.id }}/stock" method="post">
+          <input type="hidden" name="delta" value="10">
+          {{ ui.button("+10", variant="secondary", size="sm") }}
+        </form>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="px-5 py-8 text-sm text-ink-muted">Everything is well stocked.</p>
+    {% endif %}
+  </section>
+
+  <section class="rounded-card border border-border bg-surface shadow-card">
+    <div class="flex items-center justify-between border-b border-border px-5 py-4">
+      <h2 class="font-semibold">Recent orders</h2>
+      <a href="/admin/orders" class="text-sm text-brand hover:underline">View all</a>
+    </div>
+    {% if stats.recent_orders %}
+    <ul class="divide-y divide-border">
+      {% for order in stats.recent_orders %}
+      <li class="flex items-center gap-3 px-5 py-3 text-sm">
+        <span class="font-medium">#{{ order.id }}</span>
+        <span class="min-w-0 flex-1 truncate text-ink-muted">{{ order.user_email }}</span>
+        {{ ui.status_badge(order.status.value) }}
+        {{ ui.price(order.total, "sm") }}
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="px-5 py-8 text-sm text-ink-muted">No orders yet.</p>
+    {% endif %}
+  </section>
+</div>
+
+<section class="mt-6 rounded-card border border-border bg-surface shadow-card">
+  <div class="flex items-center justify-between border-b border-border px-5 py-4">
+    <h2 class="font-semibold">Recent activity</h2>
+    <a href="/admin/audit" class="text-sm text-brand hover:underline">Full audit log</a>
+  </div>
+  {% if stats.recent_activity %}
+  <ul class="divide-y divide-border">
+    {% for entry in stats.recent_activity %}
+    <li class="flex flex-wrap items-center gap-3 px-5 py-3 text-sm">
+      {{ ui.badge(entry.action, "brand") }}
+      <span class="text-ink-muted">{{ entry.entity_type }}{% if entry.entity_id %} #{{ entry.entity_id }}{% endif %}</span>
+      <span class="min-w-0 flex-1 truncate text-ink-faint">by {{ entry.admin_email }}</span>
+      <span class="text-xs text-ink-faint">{{ entry.created_at.strftime("%b %d, %H:%M") }}</span>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="px-5 py-8 text-sm text-ink-muted">No admin actions recorded yet.</p>
+  {% endif %}
+</section>
+{% endblock %}
