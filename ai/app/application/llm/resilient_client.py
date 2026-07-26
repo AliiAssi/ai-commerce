@@ -15,9 +15,6 @@ logger = logging.getLogger(__name__)
 _BACKOFF_SECONDS = (0.5, 2.0)
 
 
-# Wraps any ILLMClient with timeout + retry-with-backoff, so no provider reimplements it.
-# Only retries transient failures, and for streams only before the first event is
-# yielded — a partial stream can't be safely restarted.
 class ResilientLLMClient(ILLMClient):
     def __init__(self, inner: ILLMClient, settings: Settings) -> None:
         self._inner = inner
