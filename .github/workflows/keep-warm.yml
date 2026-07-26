@@ -1,0 +1,36 @@
+name: Keep warm
+
+on:
+  schedule:
+    # Every 5 hours. Free instances sleep after ~15 min idle, so this is a liveness
+    # check that keeps the deploy honest — the browser-side warm ping (POST
+    # /api/v1/ai/warm on chat open) is what actually covers a visitor's cold start.
+    - cron: "0 */5 * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping health endpoints
+        env:
+          WEB_URL: ${{ vars.RENDER_WEB_URL }}
+          AI_URL: ${{ vars.RENDER_AI_URL }}
+        run: |
+          set -u
+          status=0
+          for url in "$WEB_URL" "$AI_URL"; do
+            if [ -z "$url" ]; then
+              echo "::warning::a service URL variable is unset — skipping"
+              continue
+            fi
+            echo "--> ${url%/}/healthz"
+            # A cold instance has to build up from sleep before it answers at all.
+            if curl -fsS --max-time 180 --retry 2 --retry-delay 15 "${url%/}/healthz"; then
+              echo ""
+            else
+              echo "::error::${url%/}/healthz did not come up"
+              status=1
+            fi
+          done
+          exit $status

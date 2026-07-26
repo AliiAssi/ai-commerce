@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Response
 from fastapi.responses import StreamingResponse
 
 from app.application.iservices.iai_gateway import IAIGateway
@@ -35,3 +35,12 @@ async def chat(
         media_type="text/event-stream",
         headers={**_SSE_HEADERS, "X-Session-Id": handle.session_id or ""},
     )
+
+
+# POST (not GET) so crawlers and link prefetchers can't spin the AI instance up for free.
+@router.post("/warm", status_code=202)
+async def warm() -> Response:
+    settings = container.resolve(Settings)
+    if settings.AI_SERVICE_URL and settings.INTERNAL_API_KEY:
+        await container.resolve(IAIGateway).warm()
+    return Response(status_code=202)

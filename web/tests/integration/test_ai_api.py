@@ -15,6 +15,10 @@ pytestmark = pytest.mark.skipif(
 class FakeAIGateway:
     def __init__(self) -> None:
         self.calls: list[dict] = []
+        self.warms = 0
+
+    async def warm(self) -> None:
+        self.warms += 1
 
     async def open_chat(self, message, session_id, user_email):
         from app.application.dtos.ai_dto import ChatStreamHandle
@@ -76,3 +80,17 @@ async def test_oversized_message_is_rejected(client, fake_gateway) -> None:
     response = await client.post("/api/v1/ai/chat", json={"message": "x" * 2001})
     assert response.status_code == 422
     assert fake_gateway.calls == []
+
+
+async def test_warm_nudges_the_ai_service(client, fake_gateway) -> None:
+    response = await client.post("/api/v1/ai/warm")
+
+    assert response.status_code == 202
+    assert fake_gateway.warms == 1
+
+
+async def test_warm_is_not_reachable_by_get(client, fake_gateway) -> None:
+    response = await client.get("/api/v1/ai/warm")
+
+    assert response.status_code == 405
+    assert fake_gateway.warms == 0

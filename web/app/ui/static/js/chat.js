@@ -26,8 +26,14 @@
     get_order_status: "Checking your order status…",
   };
 
+  // A sleeping AI instance needs ~30-60s to boot, so we start it as soon as the panel
+  // opens and only tell the visitor about it if the wait actually becomes noticeable.
+  const WAKE_NOTICE_MS = 2500;
+  const WAKE_NOTICE = "Waking the assistant up, this can take up to a minute…";
+
   let streaming = false;
   let controller = null;
+  let warmed = false;
 
   // A stale session id from a different logged-in user must not be reused (order scoping).
   const currentUser = document.body.dataset.user || "";
@@ -36,9 +42,20 @@
     localStorage.setItem(USER_KEY, currentUser);
   }
 
+  function warm() {
+    if (warmed) return;
+    warmed = true;
+    fetch("/api/v1/ai/warm", {
+      method: "POST",
+      credentials: "same-origin",
+      keepalive: true,
+    }).catch(() => {});
+  }
+
   function openPanel() {
     widget.classList.add("is-open");
     launcher.setAttribute("aria-expanded", "true");
+    warm();
     setTimeout(() => input.focus(), 50);
   }
   function closePanel() {
@@ -133,6 +150,18 @@
     return bubble;
   }
 
+  // Transient status line (waking up / tool progress) shown until real tokens arrive.
+  function setNote(bubble, text) {
+    if (!bubble.dataset.typing) return;
+    let note = bubble.querySelector("[data-note]");
+    if (!note) {
+      bubble.innerHTML = '<span data-note class="text-xs italic text-ink-muted"></span>';
+      note = bubble.firstChild;
+    }
+    note.textContent = text;
+    scrollDown();
+  }
+
   function typingBubble() {
     const bubble = addBubble("assistant", '<span class="chat-typing"><span></span><span></span><span></span></span>');
     bubble.dataset.typing = "1";
@@ -159,10 +188,14 @@
 
   async function send(message) {
     const bubble = typingBubble();
-    let toolNote = null;
     let answer = "";
     let started = false;
     controller = new AbortController();
+    let wakeTimer = setTimeout(() => setNote(bubble, WAKE_NOTICE), WAKE_NOTICE_MS);
+    const clearWakeNotice = () => {
+      clearTimeout(wakeTimer);
+      wakeTimer = null;
+    };
 
     const payload = { message: message };
     const sessionId = localStorage.getItem(SESSION_KEY);
@@ -208,16 +241,11 @@
           }
 
           if (event.type === "tool") {
-            if (!started) {
-              const label = TOOL_LABELS[event.name] || "Working…";
-              if (!toolNote) {
-                bubble.innerHTML = '<span class="text-xs italic text-ink-muted"></span>';
-                toolNote = bubble.firstChild;
-              }
-              toolNote.textContent = label;
-            }
+            clearWakeNotice();
+            setNote(bubble, TOOL_LABELS[event.name] || "Working…");
           } else if (event.type === "token") {
             if (!started) {
+              clearWakeNotice();
               started = true;
               bubble.innerHTML = "";
               bubble.classList.add("chat-caret");
@@ -249,6 +277,7 @@
         finishError(bubble);
       }
     } finally {
+      clearWakeNotice();
       controller = null;
       setStreaming(false);
       scrollDown();

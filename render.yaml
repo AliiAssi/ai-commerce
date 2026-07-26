@@ -10,8 +10,10 @@ services:
     runtime: python
     plan: free
     rootDir: web
-    buildCommand: pip install uv && uv sync --frozen
-    startCommand: uv run alembic upgrade head && uv run uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    # Migrations run at build, not at boot: a free instance boots on every cold start
+    # and alembic adds seconds to each one.
+    buildCommand: pip install uv && uv sync --frozen && uv run alembic upgrade head
+    startCommand: uv run uvicorn app.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /healthz
     envVars:
       - fromGroup: ai-commerce-shared
@@ -29,8 +31,8 @@ services:
     runtime: python
     plan: free
     rootDir: ai
-    buildCommand: pip install uv && uv sync --frozen
-    startCommand: uv run alembic upgrade head && uv run uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    buildCommand: pip install uv && uv sync --frozen && uv run alembic upgrade head
+    startCommand: uv run uvicorn app.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /healthz
     envVars:
       - fromGroup: ai-commerce-shared
