@@ -1,0 +1,165 @@
+/* Ported from the inline <style> block in components/chat_widget.html. Every colour, radius
+   and timing still comes from a token; only the open-state selectors changed, because React
+   state drives the panel rather than a class toggled by chat.js. */
+
+.chat-chip {
+  border-radius: var(--radius-el);
+  border: 1px solid rgb(var(--c-border));
+  background: rgb(var(--c-surface));
+  color: rgb(var(--c-ink-muted));
+  padding: 0.375rem 0.75rem;
+  font-size: 0.8125rem;
+  transition:
+    color 0.15s,
+    border-color 0.15s;
+}
+.chat-chip:hover {
+  color: rgb(var(--c-brand));
+  border-color: rgb(var(--c-brand));
+}
+
+/* prose reset for sanitised model output */
+.chat-md > :first-child {
+  margin-top: 0;
+}
+.chat-md > :last-child {
+  margin-bottom: 0;
+}
+.chat-md p,
+.chat-md ul,
+.chat-md ol,
+.chat-md pre,
+.chat-md blockquote,
+.chat-md table {
+  margin: 0.5rem 0;
+}
+.chat-md ul {
+  list-style: disc;
+}
+.chat-md ol {
+  list-style: decimal;
+}
+.chat-md ul,
+.chat-md ol {
+  padding-left: 1.25rem;
+}
+.chat-md li {
+  margin: 0.125rem 0;
+}
+.chat-md li > ul,
+.chat-md li > ol {
+  margin: 0.125rem 0;
+}
+.chat-md h1,
+.chat-md h2,
+.chat-md h3,
+.chat-md h4 {
+  font-weight: 600;
+  margin: 0.75rem 0 0.25rem;
+}
+.chat-md h1 {
+  font-size: 1.05rem;
+}
+.chat-md h2 {
+  font-size: 1rem;
+}
+.chat-md h3,
+.chat-md h4 {
+  font-size: 0.9375rem;
+}
+.chat-md a {
+  color: rgb(var(--c-brand));
+  text-decoration: underline;
+}
+.chat-md a:hover {
+  color: rgb(var(--c-brand-hover));
+}
+.chat-md code {
+  background: rgb(var(--c-sunk));
+  border-radius: var(--radius-el);
+  padding: 0.0625rem 0.25rem;
+  font-size: 0.8125rem;
+}
+.chat-md pre {
+  background: rgb(var(--c-sunk));
+  border-radius: var(--radius-el);
+  padding: 0.5rem 0.75rem;
+  overflow-x: auto;
+}
+.chat-md pre code {
+  background: none;
+  padding: 0;
+}
+.chat-md blockquote {
+  border-left: 2px solid rgb(var(--c-border));
+  padding-left: 0.75rem;
+  color: rgb(var(--c-ink-muted));
+}
+.chat-md table {
+  display: block;
+  overflow-x: auto;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}
+.chat-md th,
+.chat-md td {
+  border: 1px solid rgb(var(--c-border));
+  padding: 0.25rem 0.5rem;
+}
+.chat-md th {
+  background: rgb(var(--c-surface-alt));
+}
+.chat-md hr {
+  border-color: rgb(var(--c-border));
+  margin: 0.75rem 0;
+}
+
+.chat-caret::after {
+  content: "▋";
+  margin-left: 1px;
+  color: rgb(var(--c-ink-faint));
+  animation: chat-blink 1s steps(2, start) infinite;
+}
+@keyframes chat-blink {
+  to {
+    visibility: hidden;
+  }
+}
+
+.chat-typing span {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin: 0 1px;
+  border-radius: 9999px;
+  background: rgb(var(--c-ink-faint));
+  animation: chat-bounce 1.2s infinite ease-in-out both;
+}
+.chat-typing span:nth-child(1) {
+  animation-delay: -0.24s;
+}
+.chat-typing span:nth-child(2) {
+  animation-delay: -0.12s;
+}
+@keyframes chat-bounce {
+  0%,
+  80%,
+  100% {
+    transform: scale(0.6);
+    opacity: 0.5;
+  }
+  40% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-panel {
+    transition: none;
+  }
+  .chat-caret::after,
+  .chat-typing span {
+    animation: none;
+  }
+}

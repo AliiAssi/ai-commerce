@@ -1,0 +1,112 @@
+@import "tailwindcss";
+@import "../styles/tokens.css";
+@import "../styles/app.css";
+@import "../styles/chat.css";
+
+/* Colours are stored as space-separated RGB triplets and swapped at runtime by the theme
+   blocks in tokens.css, so they must be `inline`: that inlines rgb(var(--c-…)) into each
+   utility instead of freezing the resolved colour into a theme variable. Opacity modifiers
+   (bg-surface/85) still work — Tailwind wraps the value in color-mix(). */
+@theme inline {
+  --color-brand: rgb(var(--c-brand));
+  --color-brand-hover: rgb(var(--c-brand-hover));
+  --color-brand-subtle: rgb(var(--c-brand-subtle));
+  --color-brand-contrast: rgb(var(--c-brand-contrast));
+
+  --color-surface: rgb(var(--c-surface));
+  --color-surface-alt: rgb(var(--c-surface-alt));
+  /* named surface-sunk, not sunk: the v3 config nested it under `surface`, and the templates
+     being ported all say bg-surface-sunk */
+  --color-surface-sunk: rgb(var(--c-sunk));
+  --color-border: rgb(var(--c-border));
+
+  --color-ink: rgb(var(--c-ink));
+  --color-ink-muted: rgb(var(--c-ink-muted));
+  --color-ink-faint: rgb(var(--c-ink-faint));
+
+  --color-clay: rgb(var(--c-clay));
+  --color-sea: rgb(var(--c-sea));
+
+  --color-danger: rgb(var(--c-danger));
+  --color-danger-subtle: rgb(var(--c-danger-subtle));
+  --color-success: rgb(var(--c-success));
+  --color-success-subtle: rgb(var(--c-success-subtle));
+  --color-warning: rgb(var(--c-warning));
+  --color-warning-subtle: rgb(var(--c-warning-subtle));
+  --color-star: rgb(var(--c-star));
+
+  --color-sidebar: rgb(var(--c-sidebar));
+  --color-sidebar-ink: rgb(var(--c-sidebar-ink));
+  --color-sidebar-ink-active: rgb(var(--c-sidebar-ink-active));
+  --color-sidebar-active: rgb(var(--c-sidebar-active));
+
+  /* named `shell` rather than `max` so max-w-shell reads as it did under the v3 config and
+     does not collide with Tailwind's built-in max-w-max */
+  --container-shell: var(--container-max);
+}
+
+/* These token names already match a Tailwind v4 theme namespace, so they live here rather
+   than in tokens.css — a custom property cannot reference itself. Tailwind still emits each
+   one onto :root, so var(--ease-rise) and friends resolve for the CSS in app.css, and each
+   utility compiles to var(...) rather than a frozen literal. Verified in the built CSS. */
+@theme {
+  /* shape — near-square: a printed catalogue, not a SaaS dashboard */
+  --radius-el: 2px;
+  --radius-card: 2px;
+
+  --font-serif:
+    "Newsreader", ui-serif, "Iowan Old Style", "Hoefler Text", "Palatino Linotype", Palatino,
+    Georgia, serif;
+  --font-sans:
+    ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue",
+    Arial, sans-serif;
+
+  /* letter-spacing and display sizes are design decisions too, so they live in the theme
+     rather than as arbitrary values sprinkled through the markup */
+  --tracking-tight: -0.02em;
+  --tracking-snug: -0.01em;
+  --tracking-wide: 0.06em;
+  --tracking-label: 0.14em;
+  --tracking-mark: 0.22em;
+  --text-display: clamp(2.75rem, 8vw, 5rem);
+  --text-title: clamp(2rem, 4vw, 3rem);
+  --text-mark: clamp(14rem, 30vw, 26rem);
+
+  --ease-rise: cubic-bezier(0.16, 0.84, 0.28, 1);
+  --ease-soft: cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+/* Shadows must NOT go through the --shadow-* theme namespace. Tailwind parses shadow values
+   to split out a shadow-colour, which resolves --shadow-card at build time and freezes the
+   light value into the utility — the dark overrides in tokens.css would then never apply.
+   Declaring the utilities by hand keeps `box-shadow: var(--shadow-card)`, matching what the
+   v3 config did. */
+@utility shadow-card {
+  box-shadow: var(--shadow-card);
+}
+@utility shadow-pop {
+  box-shadow: var(--shadow-pop);
+}
+
+/* Tailwind v4 has no --duration-* theme namespace, so the motion durations become explicit
+   utilities rather than arbitrary values in the markup. */
+@utility duration-fast {
+  transition-duration: var(--motion-fast);
+}
+@utility duration-base {
+  transition-duration: var(--motion-base);
+}
+@utility duration-slow {
+  transition-duration: var(--motion-slow);
+}
+
+/* the assistant avatar is themed like any other token */
+@utility bg-assistant {
+  background-image: var(--asset-assistant);
+}
+
+body {
+  background-color: rgb(var(--c-surface-alt));
+  color: rgb(var(--c-ink));
+  font-family: var(--font-sans);
+}

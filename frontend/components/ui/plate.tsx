@@ -1,0 +1,64 @@
+import Link from "next/link";
+import type { ReactNode } from "react";
+
+import { Price } from "./price";
+import { ProductImage } from "./product-image";
+import { Stars } from "./stars";
+import { Eyebrow } from "./typography";
+import { LOW_STOCK_AT } from "./badge";
+import type { Product } from "@/lib/api/types";
+
+const TAG_BASE =
+  "absolute left-2.5 top-2.5 rounded-el border bg-surface px-1.5 py-0.5 text-[0.625rem] uppercase tracking-label";
+
+/**
+ * Stock state, shown on the plate image itself. Silent when amply in stock — a badge on
+ * every card is noise.
+ */
+export function PlateTag({ stock }: { stock: number }) {
+  if (stock <= 0) {
+    return <span className={`${TAG_BASE} border-border text-ink-faint`}>Sold out</span>;
+  }
+  if (stock <= LOW_STOCK_AT) {
+    return <span className={`${TAG_BASE} border-clay text-clay`}>Only {stock} left</span>;
+  }
+  return null;
+}
+
+/**
+ * A catalogue plate: the product card. Enters greyscale and resolves to full material colour
+ * on intent (see .plate/.plate-art in app.css).
+ *
+ * `quickAdd` is a slot rather than a built-in form. Phase 2 renders plates read-only and
+ * passes nothing; Phase 3 passes the add-to-bag control once cart mutations exist.
+ */
+export function Plate({ product, quickAdd }: { product: Product; quickAdd?: ReactNode }) {
+  return (
+    <article className="plate reveal flex flex-col gap-3.5">
+      <Link
+        href={`/products/${product.id}`}
+        className="relative block aspect-[4/5] overflow-hidden rounded-card border border-border bg-surface-sunk"
+        aria-label={product.name}
+      >
+        <ProductImage
+          src={product.image_url}
+          alt={product.name}
+          className="plate-art h-full w-full object-cover"
+        />
+        <PlateTag stock={product.stock} />
+      </Link>
+      {product.stock > 0 && quickAdd}
+      <Link
+        href={`/products/${product.id}`}
+        className="font-serif text-lg leading-snug hover:text-brand"
+      >
+        {product.name}
+      </Link>
+      <Stars rating={product.rating_avg} count={product.review_count} />
+      <div className="mt-auto flex items-baseline justify-between gap-3 pt-1">
+        <Eyebrow>{product.origin ?? product.category_name}</Eyebrow>
+        <Price value={product.price} size="lg" />
+      </div>
+    </article>
+  );
+}
