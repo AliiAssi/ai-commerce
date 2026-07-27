@@ -25,7 +25,7 @@ export default async function HomePage() {
       <section className="relative -mx-4 mb-16 overflow-hidden border-b border-border px-4">
         <span
           aria-hidden="true"
-          className="pointer-events-none absolute end-0 top-1/2 -translate-y-1/2 font-serif text-mark leading-none text-ink opacity-5 select-none"
+          className="pointer-events-none absolute inset-e-0 top-1/2 -translate-y-1/2 font-serif text-mark leading-none text-ink opacity-5 select-none"
         >
           بيت
         </span>

@@ -24,7 +24,7 @@ export function CartBadge() {
       {showCount && (
         <span
           aria-hidden="true"
-          className="absolute end-0 top-0 min-w-[1.125rem] rounded-full bg-brand px-1 text-center text-[0.625rem] leading-[1.125rem] font-semibold text-brand-contrast"
+          className="absolute inset-e-0 top-0 min-w-4.5 rounded-full bg-brand px-1 text-center text-[0.625rem] leading-4.5 font-semibold text-brand-contrast"
         >
           {cartQuantity}
         </span>
@@ -58,10 +58,10 @@ export function AccountMenu() {
   return (
     <details className="menu relative hidden lg:block">
       <summary className="flex items-center gap-1.5 py-1 ps-2 text-sm text-ink-muted transition-colors hover:text-brand">
-        <span className="max-w-[14rem] truncate">{user.email || "Account"}</span>
+        <span className="max-w-56 truncate">{user.email || "Account"}</span>
         <Icon name="chevron-down" className="h-3 w-3" />
       </summary>
-      <div className="absolute end-0 mt-2 w-44 rounded-card border border-border bg-surface p-1 text-sm shadow-pop">
+      <div className="absolute inset-e-0 mt-2 w-44 rounded-card border border-border bg-surface p-1 text-sm shadow-pop">
         {user.role === "admin" && (
           <Link
             href="/admin"

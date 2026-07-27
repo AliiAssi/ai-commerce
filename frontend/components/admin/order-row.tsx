@@ -38,7 +38,7 @@ export function OrderRow({ order: initial }: { order: AdminOrder }) {
   return (
     <tr>
       <td className="px-4 py-3 font-medium">#{order.id}</td>
-      <td className="max-w-[14rem] truncate px-4 py-3 text-ink-muted">{order.user_email}</td>
+      <td className="max-w-56 truncate px-4 py-3 text-ink-muted">{order.user_email}</td>
       <td className="px-4 py-3 whitespace-nowrap text-ink-muted">
         {formatDateTime(order.created_at)}
       </td>
