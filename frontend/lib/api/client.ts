@@ -2,8 +2,6 @@ import "server-only";
 
 import type { ErrorEnvelope } from "./types";
 
-// Server-side only. API_BASE_URL is deliberately not NEXT_PUBLIC_*: the browser must never
-// learn where the FastAPI service lives. Every call goes browser -> Next -> FastAPI.
 const API_BASE_URL = process.env.API_BASE_URL ?? "http://127.0.0.1:8000";
 
 export class ApiError extends Error {
@@ -37,14 +35,9 @@ type CachePolicy =
 
 export interface RequestOptions {
   method?: "GET" | "POST" | "PATCH" | "DELETE";
-  /** Bearer token forwarded to FastAPI. Omit for anonymous endpoints. */
   token?: string | null;
   body?: unknown;
   query?: Record<string, string | number | boolean | null | undefined>;
-  /**
-   * Explicit on every call. Next 16 does not cache fetch by default, so anything that should
-   * be cached has to say so — and anything per-user must say no-store out loud.
-   */
   cache?: CachePolicy;
   signal?: AbortSignal;
 }
@@ -92,9 +85,6 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
 
   const text = await response.text();
 
-  // Not every failure comes from FastAPI. A sleeping Render instance or a gateway timeout
-  // answers with an HTML error page, and JSON.parse would throw a SyntaxError that escapes
-  // the ApiError contract every caller relies on.
   let payload: unknown = null;
   if (text) {
     try {

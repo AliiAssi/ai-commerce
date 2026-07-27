@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useSession } from "@/lib/client/session-store";
 import { LinkButton } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
-import { logoutAction } from "@/lib/actions/auth";
+import { LogoutButton } from "@/components/auth/logout-button";
 
 /** The bag icon, with the count once the session has loaded. */
 export function CartBadge() {
@@ -76,14 +76,7 @@ export function AccountMenu() {
         >
           My orders
         </Link>
-        <form action={logoutAction}>
-          <button
-            type="submit"
-            className="w-full rounded-el px-3 py-2 text-left text-danger hover:bg-surface-alt"
-          >
-            Log out
-          </button>
-        </form>
+        <LogoutButton className="w-full rounded-el px-3 py-2 text-left text-danger hover:bg-surface-alt" />
       </div>
     </details>
   );
@@ -120,11 +113,7 @@ export function MobileAccountLinks() {
       <Link href="/account/orders" className="block py-2 text-sm text-ink-muted">
         My orders
       </Link>
-      <form action={logoutAction}>
-        <button type="submit" className="block py-2 text-sm text-danger">
-          Log out
-        </button>
-      </form>
+      <LogoutButton className="block py-2 text-sm text-danger" />
     </>
   );
 }

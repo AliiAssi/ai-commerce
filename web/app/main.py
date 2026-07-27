@@ -5,7 +5,6 @@ import logging
 from contextlib import asynccontextmanager
 
 from fastapi import APIRouter, FastAPI
-from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 
 from app.application.iservices.iai_gateway import IAIGateway
@@ -22,52 +21,21 @@ from app.presentation.controllers.api import (
     product_controller,
     review_controller,
 )
-from app.presentation.controllers.pages import (
-    account_controller as account_pages,
-)
-from app.presentation.controllers.pages import (
-    auth_controller as auth_pages,
-)
-from app.presentation.controllers.pages import (
-    cart_controller as cart_pages,
-)
-from app.presentation.controllers.pages import (
-    catalog_controller as catalog_pages,
-)
-from app.presentation.controllers.pages import (
-    checkout_controller as checkout_pages,
-)
-from app.presentation.controllers.pages import (
-    home_controller as home_pages,
-)
-from app.presentation.controllers.pages import (
-    product_controller as product_pages,
-)
-from app.presentation.controllers.pages import (
-    static_controller as static_pages,
-)
-from app.presentation.controllers.pages.admin import (
-    audit_admin_controller,
-    dashboard_controller,
-    order_admin_controller,
-    product_admin_controller,
-)
 from app.presentation.error_handlers import register_exception_handlers
-from app.presentation.templates import UI_DIR, templates
 
 logger = logging.getLogger(__name__)
 
 
+# A pure JSON API. The UI is a separate Next.js app that talks to /api/v1 over HTTP, so there
+# are no templates, no static mount, and no server-rendered pages here.
+#
+# CORS is deliberately absent: the browser only ever talks to the Next.js origin, which calls
+# this service server-side. Anything that made the browser call this directly would need CORS
+# added — and would also mean the API base URL had leaked to the client.
 def create_app() -> FastAPI:
     settings = load_settings_or_exit()
     setup_logging(settings.ENVIRONMENT)
     configure(container, settings)
-
-    templates.env.globals["store_name"] = settings.STORE_NAME
-    # The storefront chat widget only renders when the AI service is configured.
-    templates.env.globals["ai_enabled"] = bool(
-        settings.AI_SERVICE_URL and settings.INTERNAL_API_KEY
-    )
 
     @asynccontextmanager
     async def lifespan(_: FastAPI):
@@ -89,23 +57,6 @@ def create_app() -> FastAPI:
     api.include_router(admin_controller.router)
     api.include_router(ai_controller.router)
     app.include_router(api)
-
-    pages = APIRouter()
-    pages.include_router(home_pages.router)
-    pages.include_router(catalog_pages.router)
-    pages.include_router(product_pages.router)
-    pages.include_router(cart_pages.router)
-    pages.include_router(checkout_pages.router)
-    pages.include_router(auth_pages.router)
-    pages.include_router(account_pages.router)
-    pages.include_router(static_pages.router)
-    pages.include_router(dashboard_controller.router)
-    pages.include_router(product_admin_controller.router)
-    pages.include_router(order_admin_controller.router)
-    pages.include_router(audit_admin_controller.router)
-    app.include_router(pages, include_in_schema=False)
-
-    app.mount("/static", StaticFiles(directory=str(UI_DIR / "static")), name="static")
 
     @app.get("/healthz")
     async def healthz() -> dict[str, str]:

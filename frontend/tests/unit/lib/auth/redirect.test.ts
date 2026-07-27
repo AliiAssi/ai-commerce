@@ -2,8 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import { safeNext } from "@/lib/auth/redirect";
 
-// Deleting the Jinja page controllers deletes the only other copy of this rule, so these
-// cases are the regression net for the open-redirect guard.
 describe("safeNext", () => {
   it("keeps a same-site relative path", () => {
     expect(safeNext("/cart")).toBe("/cart");

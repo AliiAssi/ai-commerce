@@ -15,8 +15,6 @@ function Wrapper({ label, children }: { label: ReactNode; children: ReactNode })
   );
 }
 
-// The Jinja macros carried an `attrs` string to smuggle in maxlength/min/step. Those are just
-// props here, so the escape hatch is gone and the constraints are typechecked.
 type FieldProps = { label: ReactNode } & Omit<ComponentPropsWithoutRef<"input">, "className">;
 
 export function Field({ label, ...rest }: FieldProps) {

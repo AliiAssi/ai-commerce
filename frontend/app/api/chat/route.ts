@@ -33,7 +33,6 @@ export async function POST(request: Request) {
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache",
       Connection: "keep-alive",
-      // stops proxies buffering the stream; mirrors what the FastAPI endpoint sets
       "X-Accel-Buffering": "no",
       "X-Session-Id": upstream.headers.get("X-Session-Id") ?? "",
     },

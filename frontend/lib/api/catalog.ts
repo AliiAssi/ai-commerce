@@ -42,7 +42,6 @@ export function createReview(
   });
 }
 
-/** Home page rail: the eight best-rated products, same query the Jinja home used. */
 export function listFeatured() {
   return listProducts({ sort: "rating", page_size: 8 });
 }
@@ -50,10 +49,6 @@ export function listFeatured() {
 const MAX_PAGE_SIZE = 100; // the public endpoint's own cap
 const MAX_PRERENDER_PAGES = 20; // 2000 products; a guard, not a limit we expect to hit
 
-/**
- * Every product id, for generateStaticParams. Pages are walked rather than requested in one
- * shot because GET /products caps page_size at 100.
- */
 export async function listAllProductIds(): Promise<number[]> {
   const ids: number[] = [];
   let page = 1;

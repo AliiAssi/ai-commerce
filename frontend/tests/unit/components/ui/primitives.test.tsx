@@ -6,9 +6,6 @@ import { PlateTag } from "@/components/ui/plate";
 import { Price } from "@/components/ui/price";
 import { Stars } from "@/components/ui/stars";
 
-// These pin the behaviour the Jinja macros encoded in template conditionals, where a wrong
-// threshold or a wrong rounding rule was invisible until someone looked at the page.
-
 describe("Price", () => {
   it("formats a decimal string to two places with a dollar sign", () => {
     render(<Price value="42.5" />);

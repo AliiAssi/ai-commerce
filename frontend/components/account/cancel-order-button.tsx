@@ -13,7 +13,6 @@ export function CancelOrderButton({ orderId }: { orderId: number }) {
   const router = useRouter();
 
   const onClick = () => {
-    // same guard the Jinja form had via onsubmit="return confirm(...)"
     if (!window.confirm("Cancel this order? Stock will be restored.")) return;
 
     startTransition(async () => {

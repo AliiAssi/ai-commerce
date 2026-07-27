@@ -1,5 +1,3 @@
-// The Jinja version carried .htmx-indicator and was toggled by htmx adding a class to an
-// ancestor. There is no such class now: callers mount this only while a request is in flight.
 export function Spinner() {
   return (
     <span

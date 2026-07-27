@@ -5,7 +5,6 @@ import type { ReactNode } from "react";
 
 import { Toast, type ToastVariant } from "@/components/ui/toast";
 
-// Timings match armToast() in the Jinja app's app.js, so the feel is unchanged.
 const DISMISS_AFTER_MS = 4200;
 const LEAVE_MS = 260;
 
@@ -53,7 +52,6 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={push}>
       {children}
-      {/* #toasts is positioned by app.css, ported unchanged from the Jinja stylesheet */}
       <div id="toasts">
         {toasts.map((toast) => (
           <Toast key={toast.id} variant={toast.variant} leaving={toast.leaving}>

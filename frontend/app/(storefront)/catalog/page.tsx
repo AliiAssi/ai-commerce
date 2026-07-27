@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { QuickAdd } from "@/components/cart/add-to-bag";
+import { SortSelect } from "@/components/storefront/sort-select";
 import { Button } from "@/components/ui/button";
 import { FilterLink } from "@/components/ui/links";
 import { Pagination } from "@/components/ui/pagination";
@@ -8,19 +9,10 @@ import { EmptyState } from "@/components/ui/panel";
 import { Plate } from "@/components/ui/plate";
 import { Eyebrow } from "@/components/ui/typography";
 import { listCategories, listProducts } from "@/lib/api/catalog";
-import type { SortOption } from "@/lib/api/types";
+import { parseSort } from "@/lib/catalog-sort";
 
 export const metadata: Metadata = { title: "Catalog" };
 export const revalidate = 300;
-
-const SORTS: ReadonlyArray<{ value: SortOption; text: string }> = [
-  { value: "newest", text: "Sort · Newest" },
-  { value: "rating", text: "Best rated" },
-  { value: "price_asc", text: "Price, low to high" },
-  { value: "price_desc", text: "Price, high to low" },
-];
-
-const SORT_VALUES = new Set<string>(SORTS.map((s) => s.value));
 
 type RawParams = Record<string, string | string[] | undefined>;
 
@@ -32,14 +24,13 @@ function one(value: string | string[] | undefined): string {
 // Every filter lives in the URL, which is what makes the whole page cacheable and the rail's
 // active state impossible to desync from the grid.
 function readParams(raw: RawParams) {
-  const sort = one(raw.sort);
   const pageNumber = Number.parseInt(one(raw.page), 10);
   return {
     q: one(raw.q).trim(),
     category: one(raw.category).trim(),
     minPrice: one(raw.min_price).trim(),
     maxPrice: one(raw.max_price).trim(),
-    sort: (SORT_VALUES.has(sort) ? sort : "newest") as SortOption,
+    sort: parseSort(one(raw.sort)),
     page: Number.isFinite(pageNumber) && pageNumber > 0 ? pageNumber : 1,
   };
 }
@@ -115,10 +106,11 @@ export default async function CatalogPage(props: { searchParams: Promise<RawPara
             </div>
           </div>
 
-          {/* A plain GET form. Submitting navigates, which re-renders rail and grid together. */}
           <form action="/catalog" method="get" className="flex flex-col gap-5">
-            <input type="hidden" name="category" value={params.category} />
-            <input type="hidden" name="sort" value={params.sort} />
+            {params.category && <input type="hidden" name="category" value={params.category} />}
+            {params.sort !== "newest" && (
+              <input type="hidden" name="sort" value={params.sort} />
+            )}
 
             <div className="flex flex-col gap-2.5">
               <Eyebrow>Search</Eyebrow>
@@ -176,29 +168,7 @@ export default async function CatalogPage(props: { searchParams: Promise<RawPara
             <Eyebrow tone="muted">
               {params.category ? params.category.replaceAll("-", " ") : "Everything"}
             </Eyebrow>
-            <form action="/catalog" method="get">
-              <input type="hidden" name="q" value={params.q} />
-              <input type="hidden" name="category" value={params.category} />
-              <input type="hidden" name="min_price" value={params.minPrice} />
-              <input type="hidden" name="max_price" value={params.maxPrice} />
-              <select
-                name="sort"
-                aria-label="Sort products"
-                defaultValue={params.sort}
-                className="cursor-pointer border-0 border-b border-border bg-transparent py-1 text-sm text-ink focus:outline-none"
-              >
-                {SORTS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.text}
-                  </option>
-                ))}
-              </select>
-              {/* the Jinja version auto-submitted with onchange; a real button keeps this a
-                  Server Component and still works without JS */}
-              <Button type="submit" variant="ghost" size="sm" className="ms-2">
-                Sort
-              </Button>
-            </form>
+            <SortSelect value={params.sort} filters={toQuery(params, ["sort"]).toString()} />
           </div>
 
           {result.items.length > 0 ? (

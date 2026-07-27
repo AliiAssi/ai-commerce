@@ -1,36 +1,57 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState } from "react";
+import { useRouter } from "next/navigation";
+import { useState, useTransition } from "react";
 
-import type { AuthFormState } from "@/lib/actions/auth";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
+import { login, register } from "@/lib/client/auth";
 
 interface Props {
   mode: "login" | "register";
   next: string;
-  action: (prev: AuthFormState, formData: FormData) => Promise<AuthFormState>;
 }
 
-export function AuthForm({ mode, next, action }: Props) {
-  const [state, formAction, pending] = useActionState(action, {});
+export function AuthForm({ mode, next }: Props) {
+  const [error, setError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+  const router = useRouter();
   const isLogin = mode === "login";
+
+  const onSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const data = new FormData(event.currentTarget);
+    const email = String(data.get("email") ?? "");
+    const password = String(data.get("password") ?? "");
+
+    setError(null);
+    startTransition(async () => {
+      const result = isLogin ? await login(email, password) : await register(email, password);
+      if (!result.ok) {
+        setError(result.error ?? "Something went wrong. Please try again.");
+        return;
+      }
+      // the session cache is already refreshed by lib/client/auth; refresh() re-renders the
+      // Server Components on the destination so they see the new cookie too
+      router.push(next);
+      router.refresh();
+    });
+  };
 
   return (
     <form
-      action={formAction}
+      onSubmit={onSubmit}
       className="space-y-4 rounded-card border border-border bg-surface p-6 shadow-card"
     >
       <h1 className="text-xl font-bold">{isLogin ? "Log in" : "Create your account"}</h1>
-      <input type="hidden" name="next" value={next} />
 
-      {state.error && (
+      {error && (
         <p
           role="alert"
           className="rounded-el border border-danger bg-danger-subtle px-3 py-2 text-sm text-danger"
         >
-          {state.error}
+          {error}
         </p>
       )}
 

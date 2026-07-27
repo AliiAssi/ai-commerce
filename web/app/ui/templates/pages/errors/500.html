@@ -1,6 +1,0 @@
-{% extends "layouts/base.html" %}
-{% import "components/primitives.html" as ui %}
-{% block title %}Something went wrong — {{ store_name }}{% endblock %}
-{% block content %}
-{{ ui.empty_state("Something went wrong", "An unexpected error occurred on our side. Please try again in a moment.", "Back to the store", "/") }}
-{% endblock %}

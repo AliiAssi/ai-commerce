@@ -11,9 +11,6 @@ export const metadata: Metadata = {
   description: "A curated store of Lebanese goods, made by hand.",
 };
 
-// Runs before first paint so a saved theme choice never flashes. The Jinja app inlined this
-// in the storefront layout only, which is why its admin area flashed on reload; putting it in
-// the root layout covers every route.
 const THEME_SCRIPT = `try{var t=localStorage.getItem("theme");if(t)document.documentElement.dataset.theme=t}catch(e){}`;
 
 export default function RootLayout({

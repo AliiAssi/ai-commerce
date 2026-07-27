@@ -12,8 +12,6 @@ import { formatDateTime } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Dashboard · Admin" };
 
-// G1 — the endpoint built in Phase 0. The Jinja dashboard reached IAdminService through the
-// DI container; this is the same data over HTTP.
 export default async function AdminDashboardPage() {
   const stats = await getDashboard(await requireToken());
 

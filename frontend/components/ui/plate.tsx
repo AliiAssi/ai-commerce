@@ -35,19 +35,25 @@ export function PlateTag({ stock }: { stock: number }) {
 export function Plate({ product, quickAdd }: { product: Product; quickAdd?: ReactNode }) {
   return (
     <article className="plate reveal flex flex-col gap-3.5">
-      <Link
-        href={`/products/${product.id}`}
-        className="relative block aspect-[4/5] overflow-hidden rounded-card border border-border bg-surface-sunk"
-        aria-label={product.name}
-      >
-        <ProductImage
-          src={product.image_url}
-          alt={product.name}
-          className="plate-art h-full w-full object-cover"
-        />
+      {/* The quick-add button is absolutely positioned, so it has to sit inside this
+          relative box rather than beside the link — otherwise it anchors to whatever is
+          positioned further up the tree and lands off the image entirely. Keeping it a
+          sibling of the link (not a child) also stops a button nesting inside an anchor. */}
+      <div className="relative aspect-[4/5] overflow-hidden rounded-card border border-border bg-surface-sunk">
+        <Link
+          href={`/products/${product.id}`}
+          className="block h-full w-full"
+          aria-label={product.name}
+        >
+          <ProductImage
+            src={product.image_url}
+            alt={product.name}
+            className="plate-art h-full w-full object-cover"
+          />
+        </Link>
         <PlateTag stock={product.stock} />
-      </Link>
-      {product.stock > 0 && quickAdd}
+        {product.stock > 0 && quickAdd}
+      </div>
       <Link
         href={`/products/${product.id}`}
         className="font-serif text-lg leading-snug hover:text-brand"

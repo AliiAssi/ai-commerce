@@ -2,8 +2,6 @@ import { login } from "@/lib/api/auth";
 import { ApiError } from "@/lib/api/client";
 import { setSession } from "@/lib/auth/session";
 
-// The BFF hop. The browser posts here; this handler talks to FastAPI, keeps the token in an
-// httpOnly cookie, and returns only the user. The access token is never in a response body.
 export async function POST(request: Request) {
   let payload: unknown;
   try {

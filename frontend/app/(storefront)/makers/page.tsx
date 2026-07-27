@@ -6,9 +6,6 @@ import { Eyebrow } from "@/components/ui/typography";
 
 export const metadata: Metadata = { title: "The makers" };
 
-// The atlas: where the shelves come from. Same printed-contents rhythm as the home page's
-// category index. Data-driven here because seven near-identical blocks of markup were the
-// one place the Jinja template repeated itself.
 const PLACES = [
   {
     name: "Koura, North Lebanon",

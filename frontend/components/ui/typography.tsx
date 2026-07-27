@@ -2,11 +2,6 @@ import type { ReactNode } from "react";
 
 import { cn } from "@/lib/cn";
 
-/**
- * The uppercase utility line used for origins, eyebrows and counts.
- * Named Eyebrow rather than Label (the Jinja macro's name) so it is never confused with the
- * form Field's <label>.
- */
 export function Eyebrow({
   children,
   tone = "faint",

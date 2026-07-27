@@ -8,9 +8,6 @@ import type { TokenResponse, User } from "@/lib/api/types";
 
 export const SESSION_COOKIE = "beit_session";
 
-// The token never reaches the browser: httpOnly means JS cannot read it, so an XSS cannot
-// exfiltrate a session. Server Components and Route Handlers read it back and forward it to
-// FastAPI as a bearer header.
 export async function setSession(token: TokenResponse): Promise<void> {
   const store = await cookies();
   store.set(SESSION_COOKIE, token.access_token, {

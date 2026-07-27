@@ -33,9 +33,6 @@ interface CommonProps {
   className?: string;
 }
 
-// The Jinja macro took an `attrs` string spliced in with |safe, because there was no other way
-// to attach hx-post or maxlength. Here the escape hatch is gone: extra attributes are real
-// props, and an unknown variant is a compile error rather than a template crash at render.
 type ButtonProps = CommonProps &
   Omit<ComponentPropsWithoutRef<"button">, "className" | "children">;
 

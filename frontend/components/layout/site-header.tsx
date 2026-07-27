@@ -12,12 +12,6 @@ import { NavLink } from "@/components/ui/links";
 import { cn } from "@/lib/cn";
 import { isNavActive, NAV_ITEMS, STORE_NAME } from "@/lib/store";
 
-// The session is read on the client, not in the layout. A layout that read cookies would force
-// /, /products/[id] and the static pages to render per request, giving up the CDN caching that
-// keeps the store fast while Render sleeps. The trade is a brief anonymous header on first
-// paint of a cached page — the same trade the Jinja app made with its hx-get cart badge.
-// Closing it fully needs cacheComponents (Next 16's PPR), which is a deliberate change.
-
 export function SiteHeader() {
   const pathname = usePathname();
 

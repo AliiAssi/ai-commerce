@@ -3,7 +3,6 @@ import type { ReactNode } from "react";
 import { LinkButton } from "./button";
 import { cn } from "@/lib/cn";
 
-/** The Jinja `panel` macro was a {% call %} block; children replace caller(). */
 export function Panel({ children, className }: { children: ReactNode; className?: string }) {
   return (
     <div className={cn("rounded-card border border-border bg-surface shadow-card", className)}>

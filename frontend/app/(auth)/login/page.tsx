@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 
 import { AuthForm } from "@/components/auth/auth-form";
-import { loginAction } from "@/lib/actions/auth";
 import { safeNext } from "@/lib/auth/redirect";
 import { getCurrentUser } from "@/lib/auth/session";
 
@@ -19,7 +18,7 @@ export default async function LoginPage(props: {
 
   return (
     <div className="mx-auto max-w-sm">
-      <AuthForm mode="login" next={target} action={loginAction} />
+      <AuthForm mode="login" next={target} />
     </div>
   );
 }

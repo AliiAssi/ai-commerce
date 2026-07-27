@@ -2,8 +2,6 @@ import { EmptyState } from "@/components/ui/panel";
 import { Stars } from "@/components/ui/stars";
 import type { Review } from "@/lib/api/types";
 
-// created_at arrives as an ISO string; the Jinja template rendered it with strftime("%b %d, %Y").
-// Fixed to en-US so the server render and the client hydration cannot disagree about locale.
 const DATE_FORMAT = new Intl.DateTimeFormat("en-US", {
   month: "short",
   day: "2-digit",

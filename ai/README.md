@@ -10,6 +10,15 @@ over one shared set of tools:
 
 This service only reads the store's database. It owns just its own `ai_*` tables.
 
+It never faces the browser. The chat widget in [`frontend/`](../frontend) posts to its own
+route handler, which forwards to `web/`, which calls this service with `X-Internal-Key` — so
+`OLLAMA_API_KEY` and `MCP_BEARER_TOKEN` stay server-side and a customer can never reach this
+API directly.
+
+```
+browser ──▶ frontend ──▶ web ──X-Internal-Key──▶ ai
+```
+
 ## Setup
 
 ```bash

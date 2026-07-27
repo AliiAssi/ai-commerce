@@ -70,10 +70,6 @@ jobs:
         env:
           TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ai_commerce_test
 
-  # Lint/typecheck/tests need nothing but node — the tests stub fetch. `next build` is
-  # different: it prerenders /, the static pages and every product page, so it needs a real
-  # API to fetch from. That is the point of running it here rather than trusting Vercel:
-  # a broken prerender fails the PR, not the deploy.
   frontend:
     runs-on: ubuntu-latest
     defaults:
@@ -113,7 +109,8 @@ jobs:
       - name: Tests
         run: npm run test
 
-      # everything below only exists so `next build` has a catalog to prerender
+      # everything below exists so `next build` has a catalog to prerender, and so the
+      # end-to-end suite has a real store to drive
       - uses: astral-sh/setup-uv@v6
       - name: Install web dependencies
         working-directory: web
@@ -135,3 +132,17 @@ jobs:
           exit 1
       - name: Build
         run: npm run build
+
+      # The suite drives a browser against the built app. It catches the class of bug that
+      # only appears once Next navigates on the client instead of reloading the document —
+      # which unit tests structurally cannot see.
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+      - name: End-to-end tests
+        run: npm run test:e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: frontend/playwright-report/
+          retention-days: 7

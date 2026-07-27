@@ -3,17 +3,11 @@ import Link from "next/link";
 import { listCategories } from "@/lib/api/catalog";
 import type { Category } from "@/lib/api/types";
 import { STORE_NAME } from "@/lib/store";
+import { FooterAccountLinks } from "./footer-account";
 import { FooterLink } from "@/components/ui/links";
 import { Eyebrow } from "@/components/ui/typography";
 
-// The Jinja footer lazy-loaded the shelf directory over htmx so the layout never needed
-// category data from whichever controller rendered the page. A Server Component fetches it
-// directly instead, and the same ISR cache backs it, so it costs no extra round trip.
 async function Shelves() {
-  // Only the fetch is guarded: a sleeping backend must not take the whole page down with it,
-  // and the column degrades to the same fallback link the Jinja version showed before its
-  // htmx swap landed. The JSX is built outside the try, because a try/catch cannot catch
-  // errors thrown while React renders what it returns.
   let categories: Category[] = [];
   try {
     categories = await listCategories();
@@ -82,9 +76,7 @@ export function SiteFooter() {
             <Eyebrow>Account</Eyebrow>
           </h2>
           <div className="flex flex-col">
-            <FooterLink href="/login">Log in</FooterLink>
-            <FooterLink href="/register">Create an account</FooterLink>
-            <FooterLink href="/cart">Cart</FooterLink>
+            <FooterAccountLinks />
           </div>
         </nav>
       </div>

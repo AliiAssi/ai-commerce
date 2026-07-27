@@ -1,6 +1,0 @@
-{% extends "layouts/base.html" %}
-{% import "components/primitives.html" as ui %}
-{% block title %}Not allowed — {{ store_name }}{% endblock %}
-{% block content %}
-{{ ui.empty_state("You don't have access to this page", "This area is restricted. If you think that's wrong, contact the store owner.", "Back to the store", "/") }}
-{% endblock %}

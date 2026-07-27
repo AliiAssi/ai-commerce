@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-import { logoutAction } from "@/lib/actions/auth";
+import { LogoutButton } from "@/components/auth/logout-button";
 import { cn } from "@/lib/cn";
 
 const NAV = [
@@ -62,11 +62,5 @@ export function AdminTopNav() {
 }
 
 export function AdminLogout() {
-  return (
-    <form action={logoutAction}>
-      <button type="submit" className="text-danger hover:underline">
-        Log out
-      </button>
-    </form>
-  );
+  return <LogoutButton className="text-danger hover:underline" />;
 }
