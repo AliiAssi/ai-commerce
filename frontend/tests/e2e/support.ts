@@ -31,6 +31,15 @@ export async function register(page: Page, email: string): Promise<void> {
   await expect(accountMenu(page)).toBeVisible();
 }
 
+/** Logs in with explicit credentials — used for the seeded admin. */
+export async function loginAs(page: Page, email: string, password: string): Promise<void> {
+  await page.goto("/login");
+  await page.getByLabel("Email").fill(email);
+  await page.getByLabel("Password").fill(password);
+  await page.getByRole("button", { name: "Log in" }).click();
+  await expect(page).not.toHaveURL(/\/login/);
+}
+
 export async function login(page: Page, email: string): Promise<void> {
   await page.goto("/login");
   await page.getByLabel("Email").fill(email);

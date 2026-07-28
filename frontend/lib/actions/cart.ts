@@ -6,9 +6,14 @@ import { addCartItem, getCart, removeCartItem, updateCartItem } from "@/lib/api/
 import { ApiError } from "@/lib/api/client";
 import type { Cart } from "@/lib/api/types";
 import { getToken } from "@/lib/auth/session";
+import { UNAUTHENTICATED } from "./codes";
 import { failure, type ActionResult } from "./result";
 
-const SIGNED_OUT = { ok: false as const, error: "Log in to use your bag" };
+const SIGNED_OUT = {
+  ok: false as const,
+  error: "Log in to use your bag",
+  code: UNAUTHENTICATED,
+};
 
 async function withToken(run: (token: string) => Promise<Cart>): Promise<ActionResult<Cart>> {
   const token = await getToken();

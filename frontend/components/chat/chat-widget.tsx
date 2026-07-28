@@ -106,11 +106,12 @@ export function ChatWidget() {
     launcherRef.current?.focus();
   }, []);
 
-  // The home page hero has an "Ask the assistant" button outside this component.
   useEffect(() => {
-    const triggers = document.querySelectorAll<HTMLElement>("[data-chat-open]");
-    triggers.forEach((el) => el.addEventListener("click", openPanel));
-    return () => triggers.forEach((el) => el.removeEventListener("click", openPanel));
+    const onClick = (event: MouseEvent) => {
+      if ((event.target as Element | null)?.closest("[data-chat-open]")) openPanel();
+    };
+    document.addEventListener("click", onClick);
+    return () => document.removeEventListener("click", onClick);
   }, [openPanel]);
 
   const patch = (id: number, changes: Partial<Message>) => {

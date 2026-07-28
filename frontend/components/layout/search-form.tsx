@@ -12,6 +12,7 @@ import { Icon } from "@/components/ui/icon";
  */
 export function SearchForm({ className = "" }: { className?: string }) {
   const params = useSearchParams();
+  const query = params.get("q") ?? "";
 
   return (
     <form action="/catalog" method="get" className={className}>
@@ -21,9 +22,10 @@ export function SearchForm({ className = "" }: { className?: string }) {
           <Icon name="search" />
         </span>
         <input
+          key={query}
           type="search"
           name="q"
-          defaultValue={params.get("q") ?? ""}
+          defaultValue={query}
           placeholder="Search the store…"
           className="w-full rounded-el border border-border bg-surface-alt py-2 pe-3 ps-9 text-sm placeholder:text-ink-faint focus:border-brand focus:outline-none"
         />

@@ -8,18 +8,26 @@ import { useToast } from "@/components/providers/toast-provider";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { addToBag } from "@/lib/actions/cart";
+import { UNAUTHENTICATED } from "@/lib/actions/codes";
 
 function useAdd(productId: number) {
   const [pending, startTransition] = useTransition();
-  const { cartQuantity, user } = useSession();
+  const { cartQuantity, user, loaded } = useSession();
   const toast = useToast();
   const router = useRouter();
 
+  const toLogin = () => router.push(`/login?next=/products/${productId}`);
+
   const add = (quantity: number) => {
-    if (!user) {
-      router.push(`/login?next=/products/${productId}`);
+    // Only a *known* signed-out visitor is short-circuited. `user` is also null while the
+    // session is still loading, and treating that as signed out bounced signed-in shoppers to
+    // the login page if they clicked before /api/session answered. The client cannot read the
+    // httpOnly cookie, so when it does not know yet, the server decides.
+    if (loaded && !user) {
+      toLogin();
       return;
     }
+
     // move the badge immediately; the action's response is the source of truth
     setCartQuantity(cartQuantity + quantity);
     startTransition(async () => {
@@ -27,10 +35,11 @@ function useAdd(productId: number) {
       if (result.ok) {
         setCartQuantity(result.data.total_quantity);
         toast("Added to your bag", "success");
-      } else {
-        setCartQuantity(cartQuantity);
-        toast(result.error, "danger");
+        return;
       }
+      setCartQuantity(cartQuantity);
+      if (result.code === UNAUTHENTICATED) toLogin();
+      else toast(result.error, "danger");
     });
   };
 
