@@ -97,7 +97,7 @@ test.describe("catalog", () => {
   test("a search with no matches shows the empty state", async ({ page }) => {
     await page.goto("/catalog?q=zzzznotathing");
 
-    await expect(page.getByText("Nothing on this shelf")).toBeVisible();
+    await expect(page.getByText("No matches for that search")).toBeVisible();
     await expect(plates(page)).toHaveCount(0);
   });
 

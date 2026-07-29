@@ -3,7 +3,6 @@ from __future__ import annotations
 import logging
 import time
 from collections.abc import Awaitable, Callable
-from contextlib import AbstractAsyncContextManager
 from typing import Any
 
 from pydantic import BaseModel, ValidationError
@@ -11,13 +10,12 @@ from pydantic import BaseModel, ValidationError
 from app.application.dtos.tool_dto import ToolContext, ToolSpec
 from app.application.events.bus import EventBus
 from app.application.events.definitions import ToolExecuted
-from app.core.container import Scope, open_scope
+from app.core.container import Scope, ScopeFactory, open_scope
 from app.core.exceptions import AppError, ToolExecutionError
 
 logger = logging.getLogger(__name__)
 
 ToolFn = Callable[[BaseModel, Scope], Awaitable[dict[str, Any]]]
-ScopeFactory = Callable[[], AbstractAsyncContextManager[Scope]]
 
 
 class _Registered:

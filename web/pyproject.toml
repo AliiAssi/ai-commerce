@@ -38,6 +38,7 @@ extend-immutable-calls = [
     "fastapi.Depends",
     "fastapi.Query",
     "app.core.container.Injected",
+    "app.core.container.InjectedScopes",
 ]
 
 [tool.ruff.lint.per-file-ignores]

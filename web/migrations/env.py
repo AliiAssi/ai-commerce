@@ -25,6 +25,12 @@ target_metadata = Base.metadata
 settings = get_settings()
 
 
+def include_object(obj, name, type_, reflected, compare_to) -> bool:
+    if type_ == "table":
+        return not name.startswith("ai_")
+    return True
+
+
 # emit sql to stdout without a live connection
 def run_migrations_offline() -> None:
     context.configure(
@@ -33,6 +39,7 @@ def run_migrations_offline() -> None:
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
         compare_type=True,
+        include_object=include_object,
     )
     with context.begin_transaction():
         context.run_migrations()
@@ -40,7 +47,12 @@ def run_migrations_offline() -> None:
 
 # run the migration statements on an established connection
 def do_run_migrations(connection: Connection) -> None:
-    context.configure(connection=connection, target_metadata=target_metadata, compare_type=True)
+    context.configure(
+        connection=connection,
+        target_metadata=target_metadata,
+        compare_type=True,
+        include_object=include_object,
+    )
     with context.begin_transaction():
         context.run_migrations()
 

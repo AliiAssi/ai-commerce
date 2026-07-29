@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import inspect
-from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
+from collections.abc import AsyncIterator, Callable
+from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from typing import Any, TypeVar, get_type_hints
 
 from fastapi import Depends, Request
@@ -139,6 +139,11 @@ async def open_scope() -> AsyncIterator[Scope]:
         raise RuntimeError("Container is not configured (core/registry.py not applied)")
     async with container.session_factory() as session, session.begin():
         yield Scope(container, session)
+
+
+# Anything that has to work outside a request takes one of these rather than a session, so it
+# opens and closes its own short transactions instead of inheriting one it cannot control.
+ScopeFactory = Callable[[], AbstractAsyncContextManager[Scope]]
 
 
 async def get_scope(request: Request) -> AsyncIterator[Scope]:

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import inspect
 from collections.abc import AsyncIterator
+from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from typing import Any, TypeVar, get_type_hints
 
 from fastapi import Depends, Request
@@ -124,6 +125,30 @@ class Container:
             )
         return self.resolve(annotation, scope)
 
+    # A scope whose lifetime is one unit of work rather than one request.
+    #
+    # get_scope() below holds a transaction open for the whole request, which is right for
+    # ordinary handlers but wrong for anything that calls an external provider mid-flight: the
+    # call would run with a connection checked out and a transaction sitting idle, and a slow
+    # provider would pin a connection from a small pool. Callers that talk to the network split
+    # their work instead — read, close, call, reopen, write:
+    #
+    #     async with container.open_scope() as scope:
+    #         candidates = await scope.resolve(ISearchRepository).candidates(...)
+    #     vector = await embedding_client.embed(text)      # no transaction held
+    #     async with container.open_scope() as scope:
+    #         await scope.resolve(ISearchRepository).store(...)
+    #
+    # Each block is its own session, transaction, and Scope cache, so no instance is shared
+    # across the provider call. Also used by background workers and CLI jobs, which have no
+    # request to hang a scope off at all.
+    @asynccontextmanager
+    async def open_scope(self) -> AsyncIterator[Scope]:
+        if self.session_factory is None:
+            raise RuntimeError("Container is not configured (core/registry.py not applied)")
+        async with self.session_factory() as session, session.begin():
+            yield Scope(self, session)
+
 
 container = Container()
 
@@ -140,4 +165,26 @@ def Injected[I](interface: type[I]) -> Any:
         return scope.resolve(interface)
 
     provider.__name__ = f"inject_{getattr(interface, '__name__', 'dependency')}"
+    return Depends(provider)
+
+
+# The request-path counterpart to Container.open_scope(). A handler depending on this gets no
+# session and no transaction — only the ability to open short ones around its own database
+# work. Depending on Injected(...) instead would defeat the point, because get_scope would
+# already have opened a request-long transaction before the handler body ran.
+class ScopeFactory:
+    __slots__ = ("_container",)
+
+    def __init__(self, container: Container) -> None:
+        self._container = container
+
+    def open(self) -> AbstractAsyncContextManager[Scope]:
+        return self._container.open_scope()
+
+
+def InjectedScopes() -> Any:
+    async def provider() -> ScopeFactory:
+        return ScopeFactory(container)
+
+    provider.__name__ = "inject_scope_factory"
     return Depends(provider)

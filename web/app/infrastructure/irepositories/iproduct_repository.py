@@ -21,6 +21,10 @@ class IProductRepository(ABC):
     @abstractmethod
     async def get(self, product_id: int) -> ProductDTO | None: ...
 
+    # Preserves the given order — it is a ranking, not a set.
+    @abstractmethod
+    async def list_by_ids(self, product_ids: list[int]) -> list[ProductDTO]: ...
+
     # Used for seed idempotency and duplicate checks.
     @abstractmethod
     async def find_by_name(self, name: str) -> ProductDTO | None: ...

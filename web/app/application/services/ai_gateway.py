@@ -4,14 +4,50 @@ import json
 import logging
 import time
 from collections.abc import AsyncIterator
+from typing import Any
 
 import httpx
+from pydantic import ValidationError
 
-from app.application.dtos.ai_dto import ChatStreamHandle
+from app.application.dtos.ai_dto import ChatStreamHandle, RemoteSearchResult
+from app.application.dtos.product_dto import ProductSearchParams
 from app.application.iservices.iai_gateway import IAIGateway
 from app.core.config import Settings
+from app.core.exceptions import AppError
 
 logger = logging.getLogger(__name__)
+
+
+class RemoteSearchRejected(AppError):
+    """The AI service rejected the query itself — the shopper can see and fix this."""
+
+    status_code = 422
+    code = "invalid_search"
+
+    def __init__(self, body: Any) -> None:
+        error = body.get("error", {}) if isinstance(body, dict) else {}
+        super().__init__(
+            error.get("message") or "That search could not be interpreted.",
+            details=error.get("details"),
+        )
+
+
+def _search_payload(params: ProductSearchParams) -> dict[str, Any]:
+    # Decimals are serialized as strings so a price survives the hop exactly; JSON floats
+    # would round $14.50 into something that no longer compares equal in SQL.
+    return {
+        "q": params.q or "",
+        "category": params.category_slug,
+        "origin": params.origin,
+        "min_price": None if params.min_price is None else str(params.min_price),
+        "max_price": None if params.max_price is None else str(params.max_price),
+        "in_stock_only": params.in_stock_only,
+        "sort": params.sort,
+        "ignore_inferred": list(params.ignore_inferred),
+        "page": params.page,
+        "page_size": params.page_size,
+    }
+
 
 # A spun-down instance has to boot before it answers: allow a slow connect and a slow
 # first byte (boot + the AI service's own LLM timeout), then rely on per-chunk reads.
@@ -35,6 +71,9 @@ class AIGateway(IAIGateway):
         self._key = settings.INTERNAL_API_KEY
         self._client = client or httpx.AsyncClient(timeout=_TIMEOUT)
         self._last_warm = 0.0
+        # Search gets its own budget. The client-wide timeout is sized for a chat stream
+        # waiting out a cold boot, which is far longer than §14.2 allows a catalog request.
+        self._search_timeout = httpx.Timeout(settings.SEARCH_TIMEOUT_SECONDS)
 
     async def open_chat(
         self, message: str, session_id: str | None, user_email: str | None
@@ -70,6 +109,41 @@ class AIGateway(IAIGateway):
             return self._failed()
 
         return self._failed()
+
+    async def search(self, params: ProductSearchParams) -> RemoteSearchResult | None:
+        """Ask the AI service to rank. Returns None so the caller serves lexical instead.
+
+        Unlike chat, this is **not** retried on a cold instance. Chat can afford to wait out a
+        boot because the shopper asked for the assistant and nothing else can answer. A catalog
+        search has a working answer available locally in milliseconds, and §14.2 gives the
+        whole request 3 seconds — spending 60 of them waiting for an instance to wake, to
+        return results only marginally better than the fallback, is the wrong trade.
+        """
+        try:
+            response = await self._client.post(
+                f"{self._url}/search",
+                headers={"X-Internal-Key": self._key},
+                json=_search_payload(params),
+                timeout=self._search_timeout,
+            )
+        except httpx.HTTPError:
+            logger.info("search gateway: AI service unreachable", exc_info=True)
+            return None
+
+        if response.status_code != 200:
+            # 422 means the AI service rejected the request itself — a contradictory price
+            # range, say. That is not an outage and the fallback would hide a real validation
+            # error from the shopper, so it is surfaced rather than swallowed.
+            if response.status_code == 422:
+                raise RemoteSearchRejected(response.json())
+            logger.warning("search gateway: AI service returned HTTP %s", response.status_code)
+            return None
+
+        try:
+            return RemoteSearchResult.model_validate(response.json())
+        except (ValueError, ValidationError):
+            logger.warning("search gateway: malformed response", exc_info=True)
+            return None
 
     async def warm(self) -> None:
         """Nudge a sleeping AI instance into booting; never waits for it to finish."""

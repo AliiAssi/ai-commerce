@@ -146,6 +146,42 @@ export interface ErrorEnvelope {
   error: ErrorBody;
 }
 
-export type SortOption = "newest" | "price_asc" | "price_desc" | "rating";
+// `relevance` is only offered when a query is active — §9.1 makes it the conditional default
+// with `q` and `newest` without one. `catalog-sort.ts` is what enforces that.
+export type SortOption = "relevance" | "newest" | "price_asc" | "price_desc" | "rating";
+
+// The additive `search` object on the catalog page (§9.2). Absent on non-catalog pages and on
+// any response the API served before this feature existed, so every reader must treat it as
+// optional rather than assume it is there.
+export type SearchMode = "browse" | "filters_only" | "hybrid_reranked" | "hybrid" | "lexical";
+
+// A closed enum. The UI switches on it, so an unknown value must not be rendered — it would
+// leak operational state into shopper-facing copy.
+export type DegradedReason =
+  | "embedding_unavailable"
+  | "reranker_unavailable"
+  | "index_incomplete"
+  | "feature_disabled"
+  | "search_unavailable";
+
+/** The filters the parser inferred from the query, and that a chip can switch off. */
+export type InferredName =
+  "category" | "origin" | "min_price" | "max_price" | "in_stock_only" | "sort";
+
+export interface SearchMetadata {
+  query: string;
+  /** Detected query language, which is what selects the language of search-specific copy. */
+  language: string;
+  mode: SearchMode;
+  reranked: boolean;
+  effective_sort: SortOption;
+  /** name -> already-formatted display value, e.g. { origin: "Beirut", max_price: "30" }. */
+  inferred_filters: Partial<Record<InferredName, string>>;
+  ignored_inferred: string[];
+  degraded: boolean;
+  degraded_reason: DegradedReason | null;
+}
+
+export type ProductPage = Page<Product> & { search?: SearchMetadata };
 
 export type ProductStatusFilter = "all" | "active" | "archived" | "low";

@@ -9,7 +9,8 @@ from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import create_async_engine
 
 import app.infrastructure.models.chat_message
-import app.infrastructure.models.chat_session  # noqa: F401
+import app.infrastructure.models.chat_session
+import app.infrastructure.models.search  # noqa: F401
 from app.core.config import get_settings
 from app.infrastructure.database.base import Base
 

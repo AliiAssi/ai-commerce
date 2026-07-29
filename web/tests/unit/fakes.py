@@ -101,6 +101,12 @@ class FakeProductRepository(IProductRepository):
     async def get(self, product_id: int) -> ProductDTO | None:
         return self._products.get(product_id)
 
+    # Preserves the caller's order and drops archived rows, matching the real repository:
+    # the order is a ranking the AI service produced, not an arbitrary set.
+    async def list_by_ids(self, product_ids: list[int]) -> list[ProductDTO]:
+        found = (self._products.get(pid) for pid in product_ids)
+        return [p for p in found if p is not None and not p.is_archived]
+
     async def find_by_name(self, name: str) -> ProductDTO | None:
         return next((p for p in self._products.values() if p.name.lower() == name.lower()), None)
 

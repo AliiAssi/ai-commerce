@@ -12,25 +12,25 @@ test.describe("header search", () => {
   test("shows the query you are actually looking at", async ({ page }) => {
     await page.goto("/");
 
-    await page.getByPlaceholder("Search the store…").first().fill("soap");
-    await page.getByPlaceholder("Search the store…").first().press("Enter");
+    await page.getByTestId("header-search").first().fill("soap");
+    await page.getByTestId("header-search").first().press("Enter");
 
     await expect(page).toHaveURL(/q=soap/);
     // the input is in the persistent layout, so nothing remounts it on navigation
-    await expect(page.getByPlaceholder("Search the store…").first()).toHaveValue("soap");
+    await expect(page.getByTestId("header-search").first()).toHaveValue("soap");
   });
 
   test("updates when the query changes again", async ({ page }) => {
     await page.goto("/catalog?q=soap");
-    await expect(page.getByPlaceholder("Search the store…").first()).toHaveValue("soap");
+    await expect(page.getByTestId("header-search").first()).toHaveValue("soap");
 
     await page.goto("/catalog?q=oil");
-    await expect(page.getByPlaceholder("Search the store…").first()).toHaveValue("oil");
+    await expect(page.getByTestId("header-search").first()).toHaveValue("oil");
   });
 
   test("clears when a client-side navigation drops the query", async ({ page }) => {
     await page.goto("/catalog?q=soap");
-    await expect(page.getByPlaceholder("Search the store…").first()).toHaveValue("soap");
+    await expect(page.getByTestId("header-search").first()).toHaveValue("soap");
 
     // the footer's Everything goes to a bare /catalog; the header never remounts on a
     // client-side navigation, so the box has to notice the query went away
@@ -40,7 +40,7 @@ test.describe("header search", () => {
       .click();
 
     await expect(page).toHaveURL(/\/catalog$/);
-    await expect(page.getByPlaceholder("Search the store…").first()).toHaveValue("");
+    await expect(page.getByTestId("header-search").first()).toHaveValue("");
   });
 
   test("discards typing you abandoned when the URL moves on", async ({ page }) => {
@@ -48,7 +48,7 @@ test.describe("header search", () => {
 
     // typing makes the input dirty, so the browser stops reflecting the value attribute —
     // without a remount the abandoned term would sit there contradicting the results
-    const box = page.getByPlaceholder("Search the store…").first();
+    const box = page.getByTestId("header-search").first();
     await box.fill("something else entirely");
 
     await page
@@ -57,7 +57,7 @@ test.describe("header search", () => {
       .click();
 
     await expect(page).toHaveURL(/\/catalog$/);
-    await expect(page.getByPlaceholder("Search the store…").first()).toHaveValue("");
+    await expect(page.getByTestId("header-search").first()).toHaveValue("");
   });
 
   test("the rail's Everything keeps the search, clearing only the category", async ({
@@ -69,7 +69,7 @@ test.describe("header search", () => {
 
     await expect(page).toHaveURL(/q=soap/);
     await expect(page).not.toHaveURL(/category=/);
-    await expect(page.getByPlaceholder("Search the store…").first()).toHaveValue("soap");
+    await expect(page.getByTestId("header-search").first()).toHaveValue("soap");
   });
 });
 

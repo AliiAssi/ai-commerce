@@ -1,0 +1,409 @@
+
+
+version: 1
+
+# BEIT search lexicon — English and Arabic aliases for every deterministic filter.
+#
+# §6 requires this to be data rather than regular-expression literals scattered across the
+# parser, and requires it to be versioned: `version` above is recorded on every parsed intent
+# and in search analytics, so a ranking change is always attributable to a lexicon revision.
+#
+# Aliases are written in ordinary orthography. The loader folds them the same way it folds
+# incoming queries (hamza seats, ya forms, ta marbuta, diacritics), so `أقل من` here matches
+# `اقل من` typed by a shopper, and neither needs a variant entry. Arabic clitics are handled by
+# the matcher, so `طرابلس` also matches `بطرابلس`.
+#
+# STRONG vs WEAK
+# --------------
+# A strong alias names the thing itself: "ceramics", "soap", "طرابلس". Matching one is enough
+# to apply a filter.
+#
+# A weak alias is a word that names the category in some queries and a material or an object in
+# others. "coffee" means the Coffee & Sweets category in `coffee from Beirut under 20`, but in
+# `something for a Lebanese coffee ritual` it describes a use, and filtering to that category
+# would hide the Copper Coffee Set — which §15.1 requires in the top five. So a weak alias
+# applies its filter only when the rest of the query is short enough to be filter-like, per
+# §5.2's rule that ambiguous words stay in the semantic text instead of becoming a hidden
+# filter.
+#
+# Nothing here is stripped from the semantic text. Only price, stock and sort phrases are
+# removed as constraint syntax; a category or origin word is descriptive and keeps earning its
+# rank — §5.2.1 requires "from Beirut" to go on influencing order even once the Beirut filter
+# itself has been dropped.
+
+# Calibrated against §15, not picked round. At 2, `something for a Lebanese coffee ritual`
+# reduces to two content tokens ("lebanese", "ritual") and would wrongly filter to Coffee &
+# Sweets, hiding the Copper Coffee Set. At 1, that query stays semantic while `coffee from
+# Beirut under 20` — one token past the alias — still filters.
+weak_alias_max_extra_tokens: 1
+
+categories:
+  olive-oil:
+    label: Olive Oil & Za'atar
+    strong:
+      en: [olive oil, olive-oil, extra virgin, virgin olive oil, za'atar, zaatar, zatar, zaater]
+      ar: [زيت الزيتون, زيت زيتون, زعتر]
+    weak:
+      en: [olives, olive]
+      ar: [زيتون, زيت]
+
+  pantry:
+    label: Mouneh & Pantry
+    strong:
+      en: [mouneh, mouneh & pantry, pantry, preserves, provisions]
+      ar: [مونة, مؤونة, مونه]
+    weak:
+      en: []
+      ar: [بقالة]
+
+  coffee-sweets:
+    label: Coffee & Sweets
+    strong:
+      en: [coffee & sweets, sweets, maamoul, baklava, pastries, confectionery]
+      ar: [حلويات, حلوى, معمول, بقلاوة]
+    weak:
+      en: [coffee]
+      ar: [قهوة, بن]
+
+  ceramics:
+    label: Ceramics & Tableware
+    strong:
+      en: [ceramics, ceramic, tableware, pottery, stoneware, terracotta, earthenware]
+      ar: [سيراميك, خزف, فخار, أواني المائدة, أدوات المائدة]
+    weak:
+      en: [clay]
+      ar: [صحون, أواني]
+
+  soap-skincare:
+    label: Soap & Skincare
+    strong:
+      en: [soap, soaps, skincare, skin care, bath and body]
+      ar: [صابون, صابونة, العناية بالبشرة, عناية بالبشرة]
+    weak:
+      en: []
+      ar: []
+
+  textiles:
+    label: Textiles & Home
+    strong:
+      en: [textiles, textile, home textiles, soft furnishings]
+      ar: [منسوجات, أقمشة, مفروشات]
+    weak:
+      en: [linen, linens]
+      ar: [كتان, قماش]
+
+  woodwork:
+    label: Cedar & Woodwork
+    strong:
+      en: [woodwork, wood work, cedar & woodwork, carpentry]
+      ar: [أشغال خشبية, نجارة, خشبيات]
+    weak:
+      en: [cedar, wood, wooden]
+      ar: [خشب, أرز]
+
+  glass-copper:
+    label: Glass & Copper
+    strong:
+      en: [glass & copper, glassware, copperware, blown glass, hand-blown glass]
+      ar: [زجاج ونحاس, زجاجيات, نحاسيات]
+    weak:
+      en: [glass, copper, brass]
+      ar: [زجاج, نحاس]
+
+# Origins.
+#
+# `origins` lists the literal strings stored in products.origin. The catalog spells the same
+# town two ways — "Tripoli" and "Tripoli, North Lebanon" — which is exactly the hierarchy §6
+# calls out, and is why a place owns a list rather than a single value. Startup validation
+# fails if any string here is absent from the catalog, or if any catalog origin is unclaimed.
+#
+# `children` builds the region hierarchy: a region has no origins of its own and resolves to the
+# union of its members, so "North Lebanon" reaches Koura, Zgharta, Bcharre, Tripoli and Akkar.
+places:
+  # ---- localities -------------------------------------------------------------------------
+  akkar:
+    label: Akkar
+    origins: ["Akkar"]
+    strong:
+      en: [akkar]
+      ar: [عكار]
+
+  baalbek:
+    label: Baalbek
+    origins: ["Baalbek"]
+    strong:
+      en: [baalbek, baalbeck, baalbec]
+      ar: [بعلبك]
+
+  bcharre:
+    label: Bcharre
+    origins: ["Bcharre, North Lebanon"]
+    strong:
+      en: [bcharre, bcharreh, bsharri, becharre, bsharre]
+      ar: [بشري, بشرة, بشرّي]
+
+  beirut:
+    label: Beirut
+    origins: ["Beirut"]
+    strong:
+      en: [beirut, beyrouth]
+      ar: [بيروت]
+
+  beit-chabab:
+    label: Beit Chabab
+    origins: ["Beit Chabab"]
+    strong:
+      en: [beit chabab, beit chebab, bayt shabab]
+      ar: [بيت شباب]
+
+  # No aliases of its own: "Bekaa Valley" as a phrase resolves to the region below, which
+  # already contains this origin. Declared so the origin string has an owner.
+  bekaa-valley:
+    label: Bekaa Valley
+    origins: ["Bekaa Valley"]
+
+  chouf:
+    label: Chouf
+    origins: ["Chouf"]
+    children: [deir-el-qamar]
+    strong:
+      en: [chouf, shouf, el chouf]
+      ar: [الشوف]
+    weak:
+      # Bare شوف is the Levantine imperative "look" as often as it is the district.
+      ar: [شوف]
+
+  deir-el-qamar:
+    label: Deir el Qamar
+    origins: ["Deir el Qamar"]
+    strong:
+      en: [deir el qamar, deir al qamar, deir el kamar, deir qamar]
+      ar: [دير القمر]
+
+  hasbaya:
+    label: Hasbaya
+    origins: ["Hasbaya, South Lebanon"]
+    strong:
+      en: [hasbaya, hasbaiya, hasbaya el chouf]
+      ar: [حاصبيا]
+
+  hermel:
+    label: Hermel
+    origins: ["Hermel"]
+    strong:
+      en: [hermel, el hermel]
+      ar: [الهرمل, هرمل]
+
+  jabal-moussa:
+    label: Jabal Moussa
+    origins: ["Jabal Moussa"]
+    strong:
+      en: [jabal moussa, jabal musa, jebel moussa]
+      ar: [جبل موسى]
+
+  jezzine:
+    label: Jezzine
+    origins: ["Jezzine, South Lebanon"]
+    strong:
+      en: [jezzine, jezzin, jizzine]
+      ar: [جزين]
+
+  koura:
+    label: Koura
+    origins: ["Koura, North Lebanon"]
+    strong:
+      en: [koura, el koura, al koura]
+      ar: [الكورة, كورة]
+
+  rachaya:
+    label: Rachaya
+    origins: ["Rachaya"]
+    strong:
+      en: [rachaya, rashaya, rachaya el wadi]
+      ar: [راشيا]
+
+  sarafand:
+    label: Sarafand
+    origins: ["Sarafand, South Lebanon"]
+    strong:
+      en: [sarafand, sarepta, es sarafand]
+      ar: [الصرفند, صرفند]
+
+  tripoli:
+    label: Tripoli
+    # Both spellings live in the catalog; §6 requires "Tripoli" to reach both.
+    origins: ["Tripoli", "Tripoli, North Lebanon"]
+    strong:
+      en: [tripoli, trablous]
+      ar: [طرابلس]
+
+  tyre:
+    label: Tyre
+    origins: ["Tyre, South Lebanon"]
+    strong:
+      en: [tyre]
+      ar: [صور لبنان]
+    weak:
+      # "Sour" is the usual transliteration of the town, and also the flavour word that carries
+      # `available sour ingredient for fattoush` in §15.1. صور is likewise the plural of
+      # "picture". All three only filter when the query is short enough to be a place lookup.
+      en: [sour, sur]
+      ar: [صور]
+
+  zgharta:
+    label: Zgharta
+    origins: ["Zgharta, North Lebanon"]
+    strong:
+      en: [zgharta, zghorta]
+      ar: [زغرتا]
+
+  zouk-mikael:
+    label: Zouk Mikael
+    origins: ["Zouk Mikael"]
+    strong:
+      en: [zouk mikael, zouk mikayel, zouk mosbeh, zouk]
+      ar: [ذوق مكايل, زوق مكايل, الذوق]
+
+  # ---- regions ----------------------------------------------------------------------------
+  north-lebanon:
+    label: North Lebanon
+    children: [tripoli, koura, zgharta, bcharre, akkar]
+    strong:
+      en: [north lebanon, northern lebanon, north of lebanon, the north]
+      ar: [شمال لبنان, الشمال]
+
+  south-lebanon:
+    label: South Lebanon
+    children: [sarafand, tyre, jezzine, hasbaya]
+    strong:
+      en: [south lebanon, southern lebanon, south of lebanon, the south]
+      ar: [جنوب لبنان, الجنوب]
+
+  mount-lebanon:
+    label: Mount Lebanon
+    children: [beit-chabab, chouf, deir-el-qamar, jabal-moussa, zouk-mikael]
+    strong:
+      en: [mount lebanon, mt lebanon, the mountain, keserwan, kesrouan]
+      ar: [جبل لبنان, الجبل, كسروان]
+
+  bekaa:
+    label: Bekaa
+    children: [bekaa-valley, baalbek, hermel, rachaya]
+    strong:
+      en: [bekaa, beqaa, bekaa valley, beqaa valley, the bekaa, bequaa]
+      ar: [البقاع, بقاع, سهل البقاع]
+
+# Price comparators. A number alone is never a constraint — §5.2 permits a bare number to be read
+# as USD only inside an otherwise clear budget phrase, which is what these anchor.
+price:
+  max:
+    en:
+      [
+        under,
+        below,
+        less than,
+        lower than,
+        up to,
+        at most,
+        no more than,
+        not more than,
+        cheaper than,
+        max,
+        maximum,
+        within,
+      ]
+    ar:
+      [
+        تحت,
+        أقل من,
+        بأقل من,
+        دون,
+        بحد أقصى,
+        أرخص من,
+        لا يزيد عن,
+        ما يزيد عن,
+        حتى,
+      ]
+  min:
+    en:
+      [
+        over,
+        above,
+        more than,
+        greater than,
+        at least,
+        starting at,
+        starting from,
+        no less than,
+        min,
+        minimum,
+      ]
+    ar:
+      [
+        فوق,
+        أكثر من,
+        بأكثر من,
+        على الأقل,
+        بحد أدنى,
+        أغلى من,
+        لا يقل عن,
+        ابتداء من,
+      ]
+  # {a} and {b} are the two bounds. Whitespace in a template is optional when matching, which is
+  # what lets the Arabic conjunction attach directly to its number: "بين ١٠ و٢٥".
+  range:
+    - between {a} and {b}
+    - from {a} to {b}
+    - "{a} to {b}"
+    - بين {a} و {b}
+    - من {a} إلى {b}
+    - من {a} حتى {b}
+
+# §4 rules out currency conversion, and §5.2 forbids silently reading another currency as USD.
+# Finding one of these beside a number suppresses that price inference outright: the number
+# stays in the semantic text and no filter is applied.
+foreign_currencies:
+  en:
+    [
+      lbp,
+      l.l.,
+      ll,
+      lira,
+      liras,
+      lire,
+      lebanese pound,
+      lebanese pounds,
+      eur,
+      euro,
+      euros,
+      gbp,
+      pound,
+      pounds,
+      sterling,
+      sar,
+      riyal,
+      aed,
+      dirham,
+      dirhams,
+    ]
+  ar: [ليرة, ليرات, ل.ل, يورو, جنيه, إسترليني, ريال, درهم]
+  symbols: ["€", "£", "₤", "﷼"]
+
+availability:
+  strong:
+    en: [in stock, in-stock, available now, currently available, on hand, available]
+    ar: [متوفر, متوفرة, متاح, متاحة, موجود, بالمخزون, في المخزون, متوفر الآن]
+
+sort:
+  price_asc:
+    en: [cheapest, cheap, lowest price, least expensive, price low to high, best value]
+    ar: [الأرخص, أرخص, الأقل سعرا, الأوفر]
+  price_desc:
+    en: [most expensive, highest price, priciest, dearest, price high to low]
+    ar: [الأغلى, أغلى, الأعلى سعرا]
+  rating:
+    en: [highest rated, best rated, top rated, best reviewed, highest rating]
+    ar: [الأعلى تقييما, الأفضل تقييما, الأحسن تقييما, الأعلى تقييم]
+  newest:
+    en: [newest, latest, new arrivals, most recent, just arrived]
+    ar: [الأحدث, أحدث, الجديد, وصل حديثا]

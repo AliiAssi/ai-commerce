@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any, Literal
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
-from pydantic import Field, ValidationError
+from pydantic import Field, ValidationError, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _ASYNCPG_SSL_MODES = {"prefer", "allow", "require", "verify-ca", "verify-full"}
@@ -32,6 +32,19 @@ class Settings(BaseSettings):
     SEED_ADMIN_PASSWORD: str = "Admin#12345"
 
     LOW_STOCK_THRESHOLD: int = 5
+
+    #  Smart search
+    SMART_SEARCH_ROUTING_ENABLED: bool = False
+    SEARCH_TIMEOUT_SECONDS: float = Field(default=3.0, gt=0)
+
+    @model_validator(mode="after")
+    def _check_smart_search(self) -> Settings:
+        if self.SMART_SEARCH_ROUTING_ENABLED and not self.AI_SERVICE_URL:
+            raise ValueError(
+                "SMART_SEARCH_ROUTING_ENABLED requires AI_SERVICE_URL: "
+                "the AI service owns retrieval."
+            )
+        return self
 
     @property
     def sqlalchemy_database_url(self) -> str:
@@ -71,8 +84,11 @@ def load_settings_or_exit() -> Settings:
     try:
         return get_settings()
     except ValidationError as exc:
-        missing = ", ".join(str(err["loc"][0]) for err in exc.errors())
+        problems = [
+            f"{err['loc'][0]}: {err['msg']}" if err["loc"] else err["msg"] for err in exc.errors()
+        ]
         sys.exit(
-            f"FATAL: missing/invalid required environment variables: {missing}.\n"
-            f"Set them in {ENV_FILE} (copy .env.example at the repo root)."
+            "FATAL: missing/invalid environment variables:\n  "
+            + "\n  ".join(problems)
+            + f"\nSet them in {ENV_FILE} (copy .env.example at the repo root)."
         )

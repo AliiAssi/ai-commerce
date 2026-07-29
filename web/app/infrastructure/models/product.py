@@ -36,6 +36,18 @@ class Product(Base):
     __table_args__ = (
         CheckConstraint("stock >= 0", name="stock_non_negative"),
         Index("ix_products_search_vector", "search_vector", postgresql_using="gin"),
+        Index(
+            "ix_products_name_trgm",
+            "name",
+            postgresql_using="gin",
+            postgresql_ops={"name": "gin_trgm_ops"},
+        ),
+        Index(
+            "ix_products_origin_trgm",
+            "origin",
+            postgresql_using="gin",
+            postgresql_ops={"origin": "gin_trgm_ops"},
+        ),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)

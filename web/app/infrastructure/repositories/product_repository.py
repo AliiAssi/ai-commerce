@@ -25,6 +25,23 @@ _SORTS = {
 }
 
 
+def _ordering(params: ProductSearchParams):
+    """Sort order for the lexical path.
+
+    This repository is the degraded fallback (§12 step 4) as well as the admin's search, so
+    `relevance` here means `ts_rank` over the existing generated tsvector — the best ordering
+    available without leaving the database. With no query there is nothing to rank, so it falls
+    back to the ordinary catalog default.
+    """
+    sort = params.effective_sort
+    if sort != "relevance":
+        return _SORTS[sort]()
+    if not params.q:
+        return _SORTS["newest"]()
+    rank = func.ts_rank(Product.search_vector, func.websearch_to_tsquery("english", params.q))
+    return (rank.desc(), Product.id.asc())
+
+
 class ProductRepository(IProductRepository):
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
@@ -65,10 +82,14 @@ class ProductRepository(IProductRepository):
             stmt = stmt.join(Category, Product.category_id == Category.id).where(
                 Category.slug == params.category_slug
             )
+        if params.origin:
+            stmt = stmt.where(Product.origin == params.origin)
         if params.min_price is not None:
             stmt = stmt.where(Product.price >= params.min_price)
         if params.max_price is not None:
             stmt = stmt.where(Product.price <= params.max_price)
+        if params.in_stock_only:
+            stmt = stmt.where(Product.stock > 0)
 
         count_stmt = stmt.with_only_columns(
             func.count(Product.id), maintain_column_froms=True
@@ -76,7 +97,7 @@ class ProductRepository(IProductRepository):
         total = await self._session.scalar(count_stmt) or 0
 
         stmt = (
-            stmt.order_by(*_SORTS[params.sort]())
+            stmt.order_by(*_ordering(params))
             .offset((params.page - 1) * params.page_size)
             .limit(params.page_size)
         )
@@ -87,6 +108,23 @@ class ProductRepository(IProductRepository):
             page=params.page,
             page_size=params.page_size,
         )
+
+    # Hydration for search results the AI service ranked. It returns ordered ids; the ordering
+    # is the answer, so it is preserved here rather than re-derived — SQL has no inherent order
+    # for `IN`, and re-sorting by any column would discard the ranking entirely.
+    #
+    # Archived products are excluded again on this side. The AI service already filters them,
+    # but it queried a moment earlier, and this is the query whose result reaches the shopper.
+    async def list_by_ids(self, product_ids: list[int]) -> list[ProductDTO]:
+        if not product_ids:
+            return []
+        products = (
+            await self._session.scalars(
+                select(Product).where(Product.id.in_(product_ids), Product.is_archived.is_(False))
+            )
+        ).all()
+        by_id = {product.id: self._to_dto(product) for product in products}
+        return [by_id[pid] for pid in product_ids if pid in by_id]
 
     async def get(self, product_id: int) -> ProductDTO | None:
         product = await self._session.scalar(
