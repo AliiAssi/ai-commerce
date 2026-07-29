@@ -14,7 +14,7 @@ import app.infrastructure.models.order
 import app.infrastructure.models.product
 import app.infrastructure.models.review
 import app.infrastructure.models.user  # noqa: F401
-from app.core.config import get_settings
+from app.core.config import get_migration_settings
 from app.infrastructure.database.base import Base
 
 config = context.config
@@ -22,7 +22,9 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 target_metadata = Base.metadata
-settings = get_settings()
+# Deliberately not the full Settings: a migration needs a database and nothing else,
+# and requiring the application's secrets here is what broke CI on its first ever run.
+settings = get_migration_settings()
 
 
 def include_object(obj, name, type_, reflected, compare_to) -> bool:

@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from app.core.config import Settings
+from app.core.config import DatabaseSettings, Settings
 
 BASE = {
     "DATABASE_URL": "postgresql://u:p@localhost:5432/db",
@@ -115,3 +115,13 @@ def test_lexical_weights_rank_the_name_above_the_facets_above_the_description():
 def test_lexical_weights_are_held_to_the_range_ts_rank_accepts(weight: float):
     with pytest.raises(ValidationError, match="SEARCH_LEXICAL_WEIGHT_NAME"):
         make(SEARCH_LEXICAL_WEIGHT_NAME=weight)
+
+
+def test_migrations_need_only_a_database_url():
+    # CI's Schema drift step supplies DATABASE_URL and nothing else. This failed the first time
+    # CI ever ran, and no local run could reproduce it because the repo-root .env fills every
+    # gap on a developer machine. Asserted here so a future required setting cannot silently
+    # break migrations again.
+    settings = DatabaseSettings(_env_file=None, DATABASE_URL="postgresql://u:p@localhost:5432/db")
+
+    assert settings.sqlalchemy_database_url.startswith("postgresql+asyncpg://")

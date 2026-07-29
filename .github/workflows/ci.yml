@@ -83,8 +83,9 @@ jobs:
           uv run alembic upgrade head
           uv run alembic check
         env:
+          # DATABASE_URL and nothing else, deliberately. Migrations build DatabaseSettings
+          # rather than the full Settings, so a new application secret can never break them.
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ai_commerce_test
-          JWT_SECRET: ci-migrations-secret-0123456789abcdef
       - name: Tests (unit + integration)
         run: uv run pytest -q
         env:

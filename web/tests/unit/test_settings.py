@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from app.core.config import Settings
+from app.core.config import DatabaseSettings, Settings
 
 # Pinned rather than left to the ambient environment: pydantic reads os.environ even with
 # _env_file=None, and the integration conftest exports AI_SERVICE_URL for the whole session.
@@ -41,3 +41,13 @@ def test_search_timeout_must_be_positive():
 def test_search_timeout_is_far_below_the_chat_timeout():
     # A shopper on a catalog page will not wait an LLM-length timeout for results.
     assert make().SEARCH_TIMEOUT_SECONDS <= 5.0
+
+
+def test_migrations_need_only_a_database_url():
+    # CI's Schema drift step supplies DATABASE_URL and nothing else. This failed the first time
+    # CI ever ran, and no local run could reproduce it because the repo-root .env fills every
+    # gap on a developer machine. Asserted here so a future required setting cannot silently
+    # break migrations again.
+    settings = DatabaseSettings(_env_file=None, DATABASE_URL="postgresql://u:p@localhost:5432/db")
+
+    assert settings.sqlalchemy_database_url.startswith("postgresql+asyncpg://")

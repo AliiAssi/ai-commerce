@@ -14,10 +14,35 @@ _ASYNCPG_SSL_MODES = {"prefer", "allow", "require", "verify-ca", "verify-full"}
 ENV_FILE = Path(__file__).resolve().parents[3] / ".env"
 
 
-class Settings(BaseSettings):
+class DatabaseSettings(BaseSettings):
+    """Everything a schema migration needs, and deliberately nothing else.
+
+    Alembic's env.py builds one of these rather than the full `Settings`. A migration touches
+    the database and nothing but the database, so requiring an LLM API key or a JWT secret to
+    run one couples schema management to application config it never reads — and every new
+    required setting silently becomes a new way for migrations to fail.
+
+    That is not hypothetical: it broke CI the first time CI ever ran this branch. It went
+    unnoticed for five phases because the repo-root `.env` fills every gap on a developer's
+    machine, so a local `alembic upgrade head` can never reproduce what CI actually has.
+    """
+
     model_config = SettingsConfigDict(env_file=ENV_FILE, env_file_encoding="utf-8", extra="ignore")
 
     DATABASE_URL: str = Field(min_length=1)
+
+    @property
+    def sqlalchemy_database_url(self) -> str:
+        url, _ = _normalize_database_url(self.DATABASE_URL)
+        return url
+
+    @property
+    def database_connect_args(self) -> dict[str, Any]:
+        _, connect_args = _normalize_database_url(self.DATABASE_URL)
+        return connect_args
+
+
+class Settings(DatabaseSettings):
     JWT_SECRET: str = Field(min_length=32)
     JWT_EXPIRES_MIN: int = 1440
     BCRYPT_ROUNDS: int = 12
@@ -45,16 +70,6 @@ class Settings(BaseSettings):
                 "the AI service owns retrieval."
             )
         return self
-
-    @property
-    def sqlalchemy_database_url(self) -> str:
-        url, _ = _normalize_database_url(self.DATABASE_URL)
-        return url
-
-    @property
-    def database_connect_args(self) -> dict[str, Any]:
-        _, connect_args = _normalize_database_url(self.DATABASE_URL)
-        return connect_args
 
 
 def _normalize_database_url(raw: str) -> tuple[str, dict[str, Any]]:
@@ -91,4 +106,15 @@ def load_settings_or_exit() -> Settings:
             "FATAL: missing/invalid environment variables:\n  "
             + "\n  ".join(problems)
             + f"\nSet them in {ENV_FILE} (copy .env.example at the repo root)."
+        )
+
+
+def get_migration_settings() -> DatabaseSettings:
+    """Settings for Alembic. Fails on a missing DATABASE_URL and on nothing else."""
+    try:
+        return DatabaseSettings()
+    except ValidationError:
+        sys.exit(
+            "FATAL: DATABASE_URL is required to run migrations.\n"
+            f"Set it in the environment or in {ENV_FILE}."
         )
