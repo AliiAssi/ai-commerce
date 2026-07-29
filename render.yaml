@@ -57,19 +57,28 @@ services:
       - key: LLM_TIMEOUT_SECONDS
         value: "60"
       # This service owns retrieval, so the search models are configured here beside the chat
-      # model. Off in production until benchmarked; credentials are dashboard-managed.
+      # model. The embedding model has been benchmarked and fixed; this stays off until vector
+      # retrieval exists to use it, and is then enabled after web's routing flag, never before
+      # (§19) — the reverse order sends every query across the network only to come back lexical.
       - key: SMART_SEARCH_ENABLED
         value: "false"
+      # Provider, host and model are configuration, not secrets, and all three have to match
+      # what the stored vectors were built with — so they are pinned here rather than left to
+      # drift in a dashboard. Only the key is dashboard-managed.
       - key: EMBEDDING_PROVIDER
-        sync: false
+        value: gemini
       - key: EMBEDDING_HOST
-        sync: false
+        value: https://generativelanguage.googleapis.com
       - key: EMBEDDING_API_KEY
         sync: false
       - key: EMBEDDING_MODEL
-        sync: false
+        value: gemini-embedding-001
+      # Pinned, not dashboard-managed: this must match the vector(n) column and HNSW index
+      # exactly. A dashboard value drifting from the migration would not fail at boot — it
+      # would fail on the first write, after the backfill had already been paid for.
+      # Chosen by bake-off 2026-07-29; changing it requires re-embedding the whole catalog.
       - key: EMBEDDING_DIMENSIONS
-        sync: false
+        value: "768"
       - key: RERANKER_PROVIDER
         sync: false
       - key: RERANKER_HOST

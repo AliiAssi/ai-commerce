@@ -1,0 +1,951 @@
+# BEIT relevance corpus — the target every ranking change is measured against.
+#
+# §15.1–15.3 of SMART_SEARCH.md, transcribed into something executable, plus generated cases
+# extending toward §15's release bar of 50 judged English and 50 judged Arabic/mixed queries.
+#
+# Two rules govern this file:
+#
+#   1. It is written BEFORE a model sees it (§18.1 step 2). Scoring a model against a corpus that
+#      was adjusted to suit it measures nothing. If a case here turns out to be wrong, fix it and
+#      say so in SMART_SEARCH_PLAN.md — never quietly to make a run go green.
+#   2. `source` is load-bearing. `spec` cases are the owner's own acceptance criteria and gate
+#      releases today. `draft` cases were generated to widen coverage and are NOT gates until
+#      reviewed — the scorer reports them separately and never fails a gate on them.
+#
+# Products are referenced by name, not id. Ids are serial and change with every reseed; the names
+# are the catalog's stable identity and are also what makes a failing case readable.
+
+version: 1
+
+# Which fields a case may carry:
+#
+#   query            what the shopper typed
+#   language         en | ar | mixed — gates are computed independently per language (§18.1 step 4)
+#   source           spec | draft
+#   section          the §15 subsection a spec case comes from
+#   explicit         filters set through the URL/sidebar, e.g. {category_slug: ceramics}
+#   sort             an explicitly selected sort
+#   expect_filters   the effective filters retrieval must apply
+#   expect_inferred  what must be REPORTED as inferred, even when an explicit filter overrode it
+#   first            the product that must rank first
+#   exact_name       true when this is the §15 exact-product-name rule
+#   required         products that must appear within top_k
+#   excluded         products that must not appear at all
+#   top_k            window for `required` (default 5)
+#   allow_empty      an empty result is correct rather than a miss
+#   expect_error     the query is invalid and must be rejected, not answered (§9.3)
+#   note             why this case exists, when that is not obvious
+
+cases:
+  # ---- §15.1 English ------------------------------------------------------------------------
+
+  - id: en-frying-oil-under-25
+    query: olive oil for frying under $25
+    language: en
+    source: spec
+    section: "15.1"
+    expect_filters: {max_price: "25"}
+    first: Everyday Cooking Olive Oil
+    excluded: [Baladi Extra Virgin Olive Oil, Koura Valley First Press]
+    note: >-
+      The finishing and first-press oils are both over $25, so they must be filtered out rather
+      than merely outranked. This is also why the parser keeps "olive oil" in the semantic text:
+      stripping it would leave the ranker with "for frying".
+
+  - id: en-coffee-ritual
+    query: something for a Lebanese coffee ritual
+    language: en
+    source: spec
+    section: "15.1"
+    required: [Lebanese Coffee with Cardamom, Copper Coffee Set]
+    top_k: 5
+    note: >-
+      Must NOT resolve a category filter. The Copper Coffee Set lives in Glass & Copper, so a
+      coffee category filter would exclude the product this case requires — the reason `coffee`
+      is a weak alias.
+
+  - id: en-mezze-bowls
+    query: green bowls for a mezze table
+    language: en
+    source: spec
+    section: "15.1"
+    first: Olive-Glaze Mezze Bowls, set of six
+
+  - id: en-tripoli-soap
+    query: traditional soap from Tripoli
+    language: en
+    source: spec
+    section: "15.1"
+    expect_filters: {origin_key: tripoli}
+    required: [Tripoli Olive Oil Soap, "Laurel and Olive Soap, aged nine months"]
+    top_k: 5
+    note: >-
+      The catalog spells this origin two ways — "Tripoli" and "Tripoli, North Lebanon" — so the
+      place hierarchy has to resolve both or one of the two soaps disappears.
+
+  - id: en-housewarming-bcharre
+    query: housewarming gift under $30 from Bcharre
+    language: en
+    source: spec
+    section: "15.1"
+    expect_filters: {max_price: "30", origin_key: bcharre}
+    required:
+      - "Cedar Coasters, set of six"
+      - Mountain Wildflower Honey
+      - Beeswax and Olive Candle
+    top_k: 5
+
+  - id: en-fattoush-in-stock
+    query: available sour ingredient for fattoush
+    language: en
+    source: spec
+    section: "15.1"
+    expect_filters: {in_stock_only: true}
+    first: Pomegranate Molasses
+    excluded: [Single-Origin Sumac]
+    note: Sumac is the better semantic match and is sold out; availability must beat relevance.
+
+  - id: en-glass-south-lebanon
+    query: handmade recycled glass drinkware from south Lebanon
+    language: en
+    source: spec
+    section: "15.1"
+    expect_filters: {origin_key: south-lebanon}
+    required: ["Sarafand Hand-Blown Tumblers, set of four", Recycled Glass Pitcher]
+    top_k: 5
+
+  - id: en-table-linens-under-30
+    query: table linens under $30
+    language: en
+    source: spec
+    section: "15.1"
+    expect_filters: {max_price: "30"}
+    required: ["Linen Napkins, set of four"]
+    top_k: 5
+
+  - id: en-nonsense
+    query: zzzznotathing
+    language: en
+    source: spec
+    section: "15.1"
+    allow_empty: true
+    note: >-
+      §7.4's relevance floor. No filter is expressed, so the constraint fallback must not fire and
+      the correct answer is nothing at all rather than the nearest neighbours.
+
+  - id: en-exact-name
+    query: Baladi Extra Virgin Olive Oil
+    language: en
+    source: spec
+    section: "15.1"
+    exact_name: true
+    first: Baladi Extra Virgin Olive Oil
+
+  # ---- §15.2 Arabic -------------------------------------------------------------------------
+
+  - id: ar-frying-oil-under-25
+    query: زيت زيتون للطبخ والقلي تحت ٢٥ دولار
+    language: ar
+    source: spec
+    section: "15.2"
+    expect_filters: {max_price: "25"}
+    first: Everyday Cooking Olive Oil
+    note: Arabic-Indic digits must normalize before the price phrase can be read at all.
+
+  - id: ar-coffee-set
+    query: عدة كاملة لتحضير القهوة اللبنانية
+    language: ar
+    source: spec
+    section: "15.2"
+    required: [Copper Coffee Set, Lebanese Coffee with Cardamom]
+    top_k: 5
+
+  - id: ar-mezze-bowls
+    query: أوعية خضراء للمقبلات
+    language: ar
+    source: spec
+    section: "15.2"
+    first: Olive-Glaze Mezze Bowls, set of six
+
+  - id: ar-tripoli-soap
+    query: صابون تقليدي من طرابلس
+    language: ar
+    source: spec
+    section: "15.2"
+    expect_filters: {origin_key: tripoli}
+    required: [Tripoli Olive Oil Soap, "Laurel and Olive Soap, aged nine months"]
+    top_k: 5
+    note: >-
+      No Arabic token can match an English catalog lexically (§2.1), so before embeddings this
+      case is answered entirely by the origin filter and the constraint fallback.
+
+  - id: ar-home-gift-under-30
+    query: هدية للبيت مصنوعة يدوياً بأقل من ٣٠ دولار
+    language: ar
+    source: spec
+    section: "15.2"
+    expect_filters: {max_price: "30"}
+    note: §15.2 states this as SHOULD, so it asserts the filter and leaves ranking to the gates.
+
+  - id: ar-bekaa-in-stock-under-15
+    query: منتجات متوفرة من البقاع بأقل من ١٥ دولار
+    language: ar
+    source: spec
+    section: "15.2"
+    expect_filters: {max_price: "15", in_stock_only: true, origin_key: bekaa}
+    excluded: [Single-Origin Sumac]
+    note: >-
+      Sumac is from Hermel, which the lexicon groups under Bekaa, and is sold out — so it is
+      excluded by availability rather than by origin. That distinction is the case.
+
+  - id: ar-sour-for-fattoush
+    query: شيء حامض للفتوش
+    language: ar
+    source: spec
+    section: "15.2"
+    required: [Pomegranate Molasses]
+    top_k: 2
+    note: No availability was requested, so sumac may legitimately appear alongside it.
+
+  - id: ar-recycled-glass-tumblers
+    query: طقم كاسات زجاج معاد تدويره
+    language: ar
+    source: spec
+    section: "15.2"
+    first: Sarafand Hand-Blown Tumblers, set of four
+
+  # ---- §15.3 Mixed and filter precedence ----------------------------------------------------
+
+  - id: mixed-coffee-beirut-under-20
+    query: coffee من Beirut under 20
+    language: mixed
+    source: spec
+    section: "15.3"
+    expect_filters: {max_price: "20", origin_key: beirut, category_slug: coffee-sweets}
+    excluded: ["Walnut Maamoul, box of twelve"]
+    note: >-
+      `coffee` filters here but not in en-coffee-ritual. A short filter-like query applies a weak
+      alias; a descriptive sentence does not. Maamoul is Beirut and $22, so it fails the price
+      bound rather than the category one.
+
+  - id: mixed-explicit-category-wins
+    query: soap under 20
+    language: en
+    source: spec
+    section: "15.3"
+    explicit: {category_slug: ceramics}
+    expect_filters: {category_slug: ceramics, max_price: "20"}
+    # `expect_inferred` asserts the shopper-facing chip, which carries the display label rather
+    # than the slug — that is what §5.2.1 renders and what the shopper reads.
+    expect_inferred: {category: Soap & Skincare}
+    excluded: [Tripoli Olive Oil Soap]
+    note: >-
+      The inferred soap category must be REPORTED and NOT APPLIED. Reporting it is what lets the
+      shopper see why the results look nothing like the words they typed.
+
+  - id: mixed-contradictory-range
+    query: under $20
+    language: en
+    source: spec
+    section: "15.3"
+    explicit: {min_price: "25"}
+    expect_error: validation
+    note: >-
+      §9.3: an invalid query is rejected, never answered with results that ignore half of it.
+      This is the one case where falling back to lexical search would be the wrong behaviour.
+
+  - id: mixed-arabic-with-explicit-sort
+    query: صابون من طرابلس
+    language: ar
+    source: spec
+    section: "15.3"
+    sort: price_asc
+    expect_filters: {origin_key: tripoli, sort: price_asc}
+    first: Tripoli Olive Oil Soap
+    note: >-
+      Arabic retrieval determines membership; price determines ordering (§7.5). The Tripoli soap
+      is $9 and the laurel soap $14, so price_asc fixes the first result deterministically.
+
+  # ---- Generated: hard negatives and ambiguity ----------------------------------------------
+  #
+  # §15 requires the release evaluation set to include "ambiguous and hard-negative candidates".
+  # Everything below is DRAFT and is not a gate until reviewed. The English cases are derived
+  # from catalog facts and should be quick to confirm or reject. The Arabic cases need a native
+  # reading — they are the half SMART_SEARCH_PLAN.md flags as needing the owner specifically.
+
+  - id: en-copper-not-sold-out-first
+    query: copper
+    language: en
+    source: draft
+    excluded: []
+    note: >-
+      Hard negative on §7.4 rule 5. The Hammered Copper Rakwe is sold out; with relevance
+      otherwise equivalent it must not lead. Asserted as "not first" rather than naming a winner,
+      because which of the two in-stock copper pieces leads is not something §15 fixes.
+    not_first: [Hammered Copper Rakwe]
+
+  - id: en-cedar-from-bcharre
+    query: cedar
+    language: en
+    source: draft
+    required: ["Cedar Coasters, set of six", Cedar Keepsake Box, Cedarwood Serving Board]
+    top_k: 5
+    note: Three products carry "Cedar" in the name; all should surface before anything else.
+
+  - id: en-transliteration-rakweh
+    query: rakweh
+    language: en
+    source: draft
+    required: [Hammered Copper Rakwe]
+    top_k: 3
+    note: >-
+      Trigram-only recall. The catalog spells it "Rakwe"; full-text search misses this entirely,
+      which is the whole reason §7.2 added the trigram leg.
+
+  - id: en-transliteration-zatar
+    query: zatar
+    language: en
+    source: draft
+    required: ["Wild Mountain Za'atar"]
+    top_k: 5
+    note: Apostrophe unification plus trigram similarity against "Za'atar".
+
+  - id: en-transliteration-frikeh
+    query: frikeh
+    language: en
+    source: draft
+    required: [Smoked Freekeh]
+    top_k: 3
+
+  - id: en-category-word-only
+    query: tableware
+    language: en
+    source: draft
+    required: [Stoneware Dinner Plate, Hand-Thrown Serving Bowl]
+    top_k: 6
+    note: >-
+      Phase 4's gain, as a case. "Tableware" appears only in the category name "Ceramics &
+      Tableware" — never in a product name or description — so this is unanswerable from web's
+      products.search_vector and only works on §12's step 3.
+
+  - id: en-hard-negative-oil-is-not-olives
+    query: olive wood board
+    language: en
+    source: draft
+    first: Olive Wood Chopping Board
+    note: >-
+      Hard negative. "Olive" matches nine food products; the woodwork item has to win on the
+      other two words. This is the case the setweight A-label on the product name exists for.
+
+  - id: en-out-of-budget-is-empty-not-nearest
+    query: copper coffee set under $20
+    language: en
+    source: draft
+    expect_filters: {max_price: "20"}
+    excluded: [Copper Coffee Set, Hammered Copper Rakwe, Copper Serving Tray]
+    note: >-
+      The requested product exists and costs $76. A price bound is not a preference — returning
+      it anyway, or returning unrelated cheap goods as "close", are both failures.
+
+  - id: ar-cedar-wood
+    query: خشب الأرز
+    language: ar
+    source: draft
+    required: [Cedar Keepsake Box, Cedarwood Serving Board]
+    top_k: 5
+    note: DRAFT — needs a native reading. Expected to fail before embeddings exist (§2.1).
+
+  - id: ar-honey
+    query: عسل جبلي
+    language: ar
+    source: draft
+    required: [Mountain Wildflower Honey]
+    top_k: 5
+    note: DRAFT — needs a native reading. Expected to fail before embeddings exist.
+
+  - id: ar-soap-no-origin
+    query: صابون بزيت الزيتون
+    language: ar
+    source: draft
+    required: [Tripoli Olive Oil Soap]
+    top_k: 5
+    note: >-
+      DRAFT — needs a native reading. Deliberately carries no place name, so unlike
+      ar-tripoli-soap there is no filter to fall back on. This is the case that measures whether
+      embeddings actually bought cross-lingual retrieval.
+
+  - id: ar-cushions
+    query: وسادات قماش
+    language: ar
+    source: draft
+    required: [Kilim Cushion Cover, Striped Cotton Cushion]
+    top_k: 5
+    note: DRAFT — needs a native reading.
+
+  - id: ar-price-only
+    query: أقل من ١٥ دولار
+    language: ar
+    source: draft
+    expect_filters: {max_price: "15"}
+    note: >-
+      DRAFT. Filters-only: nothing is left after the price phrase, so §7.2 skips retrieval and
+      this must be a filtered browse rather than a text search that found nothing.
+
+  # ---- Generated English, batch 2 — §15's expansion toward 50 judged queries -----------------
+  #
+  # All DRAFT. Grounded in catalog facts (prices, stock, origins, category names) so most should
+  # be quick to confirm or reject. Grouped by what each one is actually testing, because a corpus
+  # you cannot navigate does not get reviewed.
+
+  # price bounds — the constraint most likely to be silently dropped
+  - id: en-under-ten
+    query: anything under $10
+    language: en
+    source: draft
+    expect_filters: {max_price: "10"}
+    excluded: [Baladi Extra Virgin Olive Oil, Copper Coffee Set]
+    note: Only bulgur ($8.50) and the Tripoli soap ($9) qualify. Filters-only, no semantic text.
+
+  - id: en-between-twenty-and-thirty
+    query: gifts between $20 and $30
+    language: en
+    source: draft
+    expect_filters: {min_price: "20", max_price: "30"}
+    excluded: [Coarse Bulgur, Copper Serving Tray]
+
+  - id: en-cheap-olive-oil
+    query: cheapest olive oil
+    language: en
+    source: draft
+    expect_filters: {sort: price_asc}
+    note: A sort phrase, not a price bound. Membership from the text, ordering from the sort.
+
+  - id: en-expensive-first
+    query: most expensive copper
+    language: en
+    source: draft
+    expect_filters: {sort: price_desc}
+    first: Copper Serving Tray
+
+  # availability
+  - id: en-in-stock-sumac
+    query: sumac in stock
+    language: en
+    source: draft
+    expect_filters: {in_stock_only: true}
+    excluded: [Single-Origin Sumac]
+    note: The only sumac product is sold out, so this must return the za'atar blend or nothing.
+
+  - id: en-available-maamoul
+    query: maamoul available now
+    language: en
+    source: draft
+    expect_filters: {in_stock_only: true}
+    required: ["Walnut Maamoul, box of twelve"]
+    top_k: 3
+    note: Stock 3 — low but not zero, so it must survive the availability filter.
+
+  # origin
+  - id: en-from-baalbek
+    query: from Baalbek
+    language: en
+    source: draft
+    expect_filters: {origin_key: baalbek}
+    excluded: [Tripoli Olive Oil Soap]
+    note: Filters-only. Baalbek carries the two cushions and the three copper pieces.
+
+  - id: en-north-lebanon-region
+    query: north Lebanon
+    language: en
+    source: draft
+    expect_filters: {origin_key: north-lebanon}
+    note: >-
+      A region, not a town. Must expand to Koura, Zgharta, Bcharre, Tripoli and Akkar — the
+      grouping SMART_SEARCH_PLAN.md flags as following pre-2003 governorates.
+
+  - id: en-beit-chabab-pottery
+    query: pottery from Beit Chabab
+    language: en
+    source: draft
+    expect_filters: {origin_key: beit-chabab}
+    required: [Beit Chabab Terracotta Pitcher, Clay Water Jar]
+    top_k: 5
+
+  - id: en-sarafand-glass
+    query: glass from Sarafand
+    language: en
+    source: draft
+    expect_filters: {origin_key: sarafand}
+    required: [Coloured Glass Vase, Recycled Glass Pitcher]
+    top_k: 4
+
+  # category words that are not product words
+  - id: en-mouneh
+    query: mouneh
+    language: en
+    source: draft
+    required: [Pomegranate Molasses, Coarse Bulgur]
+    top_k: 9
+    note: >-
+      Like `tableware`: appears only in the category name "Mouneh & Pantry", never in a product
+      name or description, so it is unanswerable from products.search_vector.
+
+  - id: en-skincare
+    query: skincare
+    language: en
+    source: draft
+    required: [Damascene Rose Water]
+    top_k: 4
+
+  - id: en-woodwork
+    query: woodwork
+    language: en
+    source: draft
+    required: [Cedar Keepsake Box, Olive Wood Chopping Board]
+    top_k: 5
+
+  # intent without vocabulary overlap — what embeddings are for
+  - id: en-something-to-serve-guests
+    query: something to serve guests coffee in
+    language: en
+    source: draft
+    required: [Copper Coffee Set]
+    top_k: 5
+    note: No word here appears in the product name. Expected to need the semantic leg.
+
+  - id: en-gift-for-a-cook
+    query: gift for someone who loves cooking
+    language: en
+    source: draft
+    required: [Olive Wood Chopping Board]
+    top_k: 8
+    note: Purely intentional. A lexical ranker cannot reach this.
+
+  - id: en-natural-sweetener
+    query: natural sweetener
+    language: en
+    source: draft
+    required: [Mountain Wildflower Honey]
+    top_k: 4
+
+  - id: en-something-for-breakfast
+    query: something to spread on bread in the morning
+    language: en
+    source: draft
+    required: [Stone-Ground Tahini]
+    top_k: 8
+
+  - id: en-scented-for-the-home
+    query: something that smells nice for the living room
+    language: en
+    source: draft
+    required: [Beeswax and Olive Candle]
+    top_k: 6
+
+  # hard negatives
+  - id: en-glass-not-glaze
+    query: drinking glasses
+    language: en
+    source: draft
+    first: Sarafand Hand-Blown Tumblers, set of four
+    note: >-
+      Hard negative. "Olive-Glaze Mezze Bowls" and "Coloured Glass Vase" both compete on the
+      stem; the tumblers are the only actual drinkware.
+
+  - id: en-copper-not-coffee
+    query: copper tray
+    language: en
+    source: draft
+    first: Copper Serving Tray
+    note: Hard negative against the Copper Coffee Set, which also contains a tray.
+
+  - id: en-board-not-bowl
+    query: wooden serving board
+    language: en
+    source: draft
+    required: [Cedarwood Serving Board, Olive Wood Chopping Board]
+    top_k: 3
+    note: Hard negative against "Hand-Thrown Serving Bowl", which shares two of three words.
+
+  - id: en-cushion-not-cover
+    query: cotton cushion
+    language: en
+    source: draft
+    first: Striped Cotton Cushion
+    note: Hard negative against Kilim Cushion Cover.
+
+  - id: en-not-in-catalog
+    query: espresso machine
+    language: en
+    source: draft
+    excluded: [Copper Coffee Set, Lebanese Coffee with Cardamom, Dark Roast Coffee Beans]
+    note: >-
+      The catalog has no appliances. Returning coffee products because they share a topic is
+      the nearest-neighbour failure §7.4's floor exists to prevent.
+
+  - id: en-nonsense-two
+    query: qqxzptlk
+    language: en
+    source: draft
+    allow_empty: true
+
+  # transliteration, beyond the three already covered
+  - id: en-transliteration-makdous
+    query: makdus
+    language: en
+    source: draft
+    required: ["Makdous, Stuffed Baby Aubergines"]
+    top_k: 3
+
+  - id: en-transliteration-maamoul
+    query: mamoul
+    language: en
+    source: draft
+    required: ["Walnut Maamoul, box of twelve"]
+    top_k: 3
+
+  - id: en-transliteration-baklawa
+    query: baklawa
+    language: en
+    source: draft
+    required: ["Pistachio Baklava, box of sixteen"]
+    top_k: 3
+
+  - id: en-transliteration-kilim
+    query: kelim cushion
+    language: en
+    source: draft
+    required: [Kilim Cushion Cover]
+    top_k: 3
+
+  # exact names, which §15 gates at 100%
+  - id: en-exact-name-tumblers
+    query: Sarafand Hand-Blown Tumblers, set of four
+    language: en
+    source: draft
+    exact_name: true
+    first: Sarafand Hand-Blown Tumblers, set of four
+
+  - id: en-exact-name-molasses
+    query: Pomegranate Molasses
+    language: en
+    source: draft
+    exact_name: true
+    first: Pomegranate Molasses
+
+  - id: en-exact-name-lowercase
+    query: cedar keepsake box
+    language: en
+    source: draft
+    exact_name: true
+    first: Cedar Keepsake Box
+    note: The exact-name rule normalizes case; §7.4 makes no exception for how it was typed.
+
+  # ---- Generated Arabic and mixed, batch 2 ---------------------------------------------------
+  #
+  # ALL DRAFT, and this is the half SMART_SEARCH_PLAN.md flags as needing the owner specifically.
+  # Every case below was generated, not judged. Two things to check when reviewing:
+  #
+  #   1. Is the Arabic a natural way for a Lebanese shopper to ask for this? Not merely
+  #      grammatical — natural. A stilted query tests a shopper who does not exist.
+  #   2. Is the expected product the right answer, or merely *an* answer? Where a second product
+  #      would satisfy the query equally well, the case should require both or neither.
+  #
+  # Cases marked `# MODEL AGREES` were checked against gemini-embedding-001 and it ranked the
+  # expected product first. That is evidence the query expresses the intent, not proof the
+  # phrasing is idiomatic — only a native reading settles that.
+
+  # deterministic filters, which work today and do not depend on a model
+  - id: ar-price-under-twenty
+    query: أقل من عشرين دولار
+    language: ar
+    source: draft
+    expect_filters: {max_price: "20"}
+    note: Price written as a word rather than a numeral. Confirm the parser is meant to catch it.
+
+  - id: ar-in-stock-only
+    query: المنتجات المتوفرة فقط
+    language: ar
+    source: draft
+    expect_filters: {in_stock_only: true}
+    excluded: [Single-Origin Sumac, Hammered Copper Rakwe]
+
+  - id: ar-from-baalbek
+    query: من بعلبك
+    language: ar
+    source: draft
+    expect_filters: {origin_key: baalbek}
+
+  - id: ar-from-beirut
+    query: منتجات من بيروت
+    language: ar
+    source: draft
+    expect_filters: {origin_key: beirut}
+    required: [Stone-Ground Tahini]
+    top_k: 6
+
+  - id: ar-south-lebanon
+    query: من جنوب لبنان
+    language: ar
+    source: draft
+    expect_filters: {origin_key: south-lebanon}
+
+  - id: ar-cheapest-first
+    query: الأرخص أولا
+    language: ar
+    source: draft
+    expect_filters: {sort: price_asc}
+    note: A sort phrase in Arabic. Confirm this is how it would actually be said.
+
+  # product intent — these need the semantic leg
+  - id: ar-olive-oil-soap-both
+    query: صابون زيت الزيتون
+    language: ar
+    source: draft
+    required: [Tripoli Olive Oil Soap, "Laurel and Olive Soap, aged nine months"]
+    top_k: 5
+    note: >-
+      Deliberately requires BOTH soaps, unlike ar-soap-no-origin which names only one and fails
+      on every model. If the reviewer agrees both are valid answers, this case replaces that one.
+
+  - id: ar-tahini
+    query: طحينة
+    language: ar
+    source: draft
+    required: [Stone-Ground Tahini]
+    top_k: 3
+    # MODEL AGREES
+
+  - id: ar-pomegranate-molasses
+    query: دبس الرمان
+    language: ar
+    source: draft
+    first: Pomegranate Molasses
+    # MODEL AGREES
+
+  - id: ar-zaatar
+    query: زعتر
+    language: ar
+    source: draft
+    required: ["Wild Mountain Za'atar", "Za'atar with Sesame and Sumac"]
+    top_k: 4
+
+  - id: ar-olives
+    query: زيتون مكبوس
+    language: ar
+    source: draft
+    required: [Cured Baladi Olives]
+    top_k: 4
+
+  - id: ar-freekeh
+    query: فريكة مدخنة
+    language: ar
+    source: draft
+    required: [Smoked Freekeh]
+    top_k: 3
+
+  - id: ar-bulgur
+    query: برغل خشن
+    language: ar
+    source: draft
+    required: [Coarse Bulgur]
+    top_k: 3
+
+  - id: ar-figs
+    query: تين مجفف
+    language: ar
+    source: draft
+    required: [Sun-Dried Figs]
+    top_k: 3
+
+  - id: ar-pickles
+    query: مخلل خيار
+    language: ar
+    source: draft
+    required: [Pickled Wild Cucumbers]
+    top_k: 3
+
+  - id: ar-makdous
+    query: مكدوس باذنجان
+    language: ar
+    source: draft
+    required: ["Makdous, Stuffed Baby Aubergines"]
+    top_k: 3
+
+  - id: ar-rose-water
+    query: ماء الورد
+    language: ar
+    source: draft
+    required: [Damascene Rose Water]
+    top_k: 3
+
+  - id: ar-baklava
+    query: بقلاوة بالفستق
+    language: ar
+    source: draft
+    required: ["Pistachio Baklava, box of sixteen"]
+    top_k: 3
+
+  - id: ar-maamoul
+    query: معمول بالجوز
+    language: ar
+    source: draft
+    required: ["Walnut Maamoul, box of twelve"]
+    top_k: 3
+
+  - id: ar-coffee-beans
+    query: بن محمص
+    language: ar
+    source: draft
+    required: [Dark Roast Coffee Beans]
+    top_k: 4
+
+  - id: ar-tea
+    query: شاي يانسون
+    language: ar
+    source: draft
+    required: [Anise and Linden Tea]
+    top_k: 3
+
+  - id: ar-pistachios
+    query: فستق محمص
+    language: ar
+    source: draft
+    required: [Roasted Pistachios]
+    top_k: 3
+
+  # household
+  - id: ar-clay-jar
+    query: جرة فخار للماء
+    language: ar
+    source: draft
+    required: [Clay Water Jar]
+    top_k: 4
+
+  - id: ar-dinner-plate
+    query: صحن للعشاء
+    language: ar
+    source: draft
+    required: [Stoneware Dinner Plate]
+    top_k: 5
+
+  - id: ar-herb-pot
+    query: أصيص للنعنع
+    language: ar
+    source: draft
+    required: [Terracotta Herb Pot]
+    top_k: 5
+    note: "أصيص = plant pot. Confirm this reads naturally rather than as botany."
+
+  - id: ar-table-runner
+    query: مفرش طاولة كتان
+    language: ar
+    source: draft
+    required: [Handwoven Linen Table Runner]
+    top_k: 4
+
+  - id: ar-napkins
+    query: مناديل قماش للسفرة
+    language: ar
+    source: draft
+    required: ["Linen Napkins, set of four"]
+    top_k: 4
+
+  - id: ar-basket
+    query: سلة قش
+    language: ar
+    source: draft
+    required: [Woven Reed Basket]
+    top_k: 4
+
+  - id: ar-candle
+    query: شمعة شمع عسل
+    language: ar
+    source: draft
+    required: [Beeswax and Olive Candle]
+    top_k: 4
+
+  - id: ar-copper-tray
+    query: صينية نحاس
+    language: ar
+    source: draft
+    required: [Copper Serving Tray]
+    top_k: 4
+
+  - id: ar-vase
+    query: مزهرية زجاج ملون
+    language: ar
+    source: draft
+    required: [Coloured Glass Vase]
+    top_k: 4
+
+  - id: ar-cedar-box
+    query: علبة خشب أرز
+    language: ar
+    source: draft
+    required: [Cedar Keepsake Box]
+    top_k: 4
+
+  # intent without vocabulary overlap
+  - id: ar-gift-for-a-new-home
+    query: هدية لبيت جديد
+    language: ar
+    source: draft
+    top_k: 8
+    required: [Beeswax and Olive Candle]
+    note: DRAFT and deliberately loose — several products would satisfy this. Review the choice.
+
+  - id: ar-something-for-breakfast
+    query: شي للفطور
+    language: ar
+    source: draft
+    required: [Stone-Ground Tahini]
+    top_k: 8
+    note: Colloquial "شي" rather than "شيء". Confirm the normalizer should accept both.
+
+  # hard negative
+  - id: ar-not-in-catalog
+    query: ماكينة قهوة كهربائية
+    language: ar
+    source: draft
+    excluded: [Copper Coffee Set, Hammered Copper Rakwe]
+    note: >-
+      There are no appliances. Returning the copper set because it is coffee-shaped is the
+      nearest-neighbour failure the relevance floor exists to prevent — in Arabic this time.
+
+  # mixed language, which §15.3 covers with only one case today
+  - id: mixed-soap-min-price
+    query: soap من طرابلس over $10
+    language: mixed
+    source: draft
+    expect_filters: {origin_key: tripoli, min_price: "10"}
+    excluded: [Tripoli Olive Oil Soap]
+    note: The $9 soap fails the minimum; only the $14 laurel soap survives.
+
+  - id: mixed-arabic-noun-english-filter
+    query: زعتر under $15
+    language: mixed
+    source: draft
+    expect_filters: {max_price: "15"}
+    required: ["Wild Mountain Za'atar"]
+    top_k: 4
+    note: Arabic product word, English price phrase — the reverse of mixed-coffee-beirut-under-20.
+
+  - id: mixed-english-noun-arabic-filter
+    query: honey من بشري
+    language: mixed
+    source: draft
+    expect_filters: {origin_key: bcharre}
+    required: [Mountain Wildflower Honey]
+    top_k: 4
+
+  - id: mixed-latin-transliteration
+    query: zaatar from Bekaa
+    language: en
+    source: draft
+    expect_filters: {origin_key: bekaa}
+    required: ["Wild Mountain Za'atar"]
+    top_k: 4
+    note: >-
+      Latin script throughout but the noun is a transliteration, so this is tagged `en` — the
+      language field records the script the shopper typed, not the word's origin.

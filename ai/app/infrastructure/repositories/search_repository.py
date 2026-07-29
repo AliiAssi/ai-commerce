@@ -107,6 +107,32 @@ def _empty(request: RetrievalRequest) -> RetrievalResult:
     return RetrievalResult(product_ids=[], total=0, page=request.page, page_size=request.page_size)
 
 
+def filtered_products(filters: EffectiveFilters) -> Select:
+    """Every deterministic constraint, applied in SQL as early as §7.2 step 5 requires.
+
+    Module-level and public because this is the definition of *which products a query may
+    return*, and more than the repository has to agree with it: the embedding bake-off scores
+    candidates inside the same filtered set, because a semantic leg never overrules a filter
+    (§7.3) and crediting a model for work SQL already did would measure the wrong thing.
+    """
+    stmt = (
+        select(products.c.id)
+        .select_from(products.join(categories, categories.c.id == products.c.category_id))
+        .where(products.c.is_archived.is_(False))
+    )
+    if filters.category_slug:
+        stmt = stmt.where(categories.c.slug == filters.category_slug)
+    if filters.origins:
+        stmt = stmt.where(products.c.origin.in_(filters.origins))
+    if filters.min_price is not None:
+        stmt = stmt.where(products.c.price >= filters.min_price)
+    if filters.max_price is not None:
+        stmt = stmt.where(products.c.price <= filters.max_price)
+    if filters.in_stock_only:
+        stmt = stmt.where(products.c.stock > 0)
+    return stmt
+
+
 @dataclass(slots=True)
 class SearchCapabilities:
     """Optional database features retrieval will use if they are there.
@@ -163,7 +189,7 @@ class SearchRepository(ISearchRepository):
 
     async def _browse(self, request: RetrievalRequest) -> RetrievalResult:
         """No semantic text, so §7.2 skips retrieval entirely and filters the catalog."""
-        stmt = self._filtered(request.filters)
+        stmt = filtered_products(request.filters)
         total = await self._session.scalar(
             select(func.count()).select_from(stmt.subquery("filtered_count"))
         )
@@ -190,7 +216,7 @@ class SearchRepository(ISearchRepository):
     async def _fused(self, request: RetrievalRequest) -> RetrievalResult:
         settings = self._settings
         filters = request.filters
-        filtered = self._filtered(filters).cte("filtered")
+        filtered = filtered_products(filters).cte("filtered")
 
         # Read the gate once. It is mutable process state refreshed by the index worker, and a
         # query that built one leg from step 3 and reported step 4 would be unattributable.
@@ -511,25 +537,3 @@ class SearchRepository(ISearchRepository):
             .all()
         )
         return CatalogLexiconDTO(category_slugs=list(slugs), origins=list(origins))
-
-    # ---- filters -----------------------------------------------------------------------------
-
-    @staticmethod
-    def _filtered(filters: EffectiveFilters) -> Select:
-        """Every deterministic constraint, applied in SQL as early as §7.2 step 5 requires."""
-        stmt = (
-            select(products.c.id)
-            .select_from(products.join(categories, categories.c.id == products.c.category_id))
-            .where(products.c.is_archived.is_(False))
-        )
-        if filters.category_slug:
-            stmt = stmt.where(categories.c.slug == filters.category_slug)
-        if filters.origins:
-            stmt = stmt.where(products.c.origin.in_(filters.origins))
-        if filters.min_price is not None:
-            stmt = stmt.where(products.c.price >= filters.min_price)
-        if filters.max_price is not None:
-            stmt = stmt.where(products.c.price <= filters.max_price)
-        if filters.in_stock_only:
-            stmt = stmt.where(products.c.stock > 0)
-        return stmt
