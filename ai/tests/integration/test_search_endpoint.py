@@ -179,3 +179,28 @@ class TestEdgeValidation:
 
         assert response.status_code == 200
         assert response.json()["inferred_filters"] == {}
+
+
+class TestUnknownFields:
+    async def test_a_mistyped_filter_is_rejected_rather_than_ignored(self, client, catalog):
+        # Probed against the running service: `catgory` used to return 200 with results that
+        # silently ignored it. A dropped constraint reads as a relevance bug, not a contract
+        # one, which makes it very expensive to trace back to a typo in the caller.
+        response = await client.post(
+            "/search",
+            json={"q": "soap", "catgory": "ceramics"},
+            headers={"X-Internal-Key": INTERNAL_API_KEY},
+        )
+
+        assert response.status_code == 422
+
+    async def test_the_internal_dto_shape_is_not_accepted_on_the_wire(self, client, catalog):
+        # `explicit` is how filters are grouped *inside* the service. Sending that shape is a
+        # plausible mistake, and it used to be accepted and ignored.
+        response = await client.post(
+            "/search",
+            json={"q": "soap", "explicit": {"category": "ceramics"}},
+            headers={"X-Internal-Key": INTERNAL_API_KEY},
+        )
+
+        assert response.status_code == 422

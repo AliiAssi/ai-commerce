@@ -8,6 +8,7 @@ import time
 from dataclasses import dataclass
 
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.application.dtos.index_dto import CatalogRowDTO
 from app.application.llm.gemini_embedding_client import GeminiEmbeddingClient
@@ -85,8 +86,6 @@ def cosine(a: tuple[float, ...], b: tuple[float, ...]) -> float:
 
 async def _catalog() -> list[CatalogRowDTO]:
     async with open_scope() as scope:
-        from sqlalchemy.ext.asyncio import AsyncSession
-
         session = scope.resolve(AsyncSession)
         rows = (
             await session.execute(
@@ -129,8 +128,6 @@ async def _eligible_ids(
         explicit["sort"] = case.sort
     filters = resolve_filters(intent, aliases, explicit=ExplicitFilters(**explicit))
     async with open_scope() as scope:
-        from sqlalchemy.ext.asyncio import AsyncSession
-
         session = scope.resolve(AsyncSession)
         rows = (await session.execute(filtered_products(filters))).scalars().all()
     return set(rows)

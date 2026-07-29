@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.application.dtos.search_dto import (
     DegradedReason,
@@ -19,6 +19,16 @@ from app.application.search.normalizer import Language
 
 
 class SearchRequest(BaseModel):
+    # An unknown field is a rejected request, not an ignored one. Found by probing the live
+    # endpoint: `catgory`, `maxprice` and a wrongly nested `explicit` object all returned 200
+    # with results that silently ignored the filter. That is the request-side of §12's rule
+    # about half-populated responses — a page that quietly dropped a constraint looks like an
+    # answer, and would read as a relevance bug rather than a contract one.
+    #
+    # Safe because this endpoint has exactly one caller: web's `_search_payload` sends these ten
+    # fields and nothing else, and the E2E suite exercises that path on every run.
+    model_config = ConfigDict(extra="forbid")
+
     # §5.1 caps the query at 200 characters; enforcing it here means the parser never sees a
     # longer one regardless of who calls (§14.4's "limits enforced at the API edge").
     q: str = Field(default="", max_length=200)

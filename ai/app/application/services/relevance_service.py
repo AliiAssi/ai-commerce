@@ -5,6 +5,7 @@ from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.application.dtos.relevance_dto import (
     FAILURE_EMPTY,
@@ -282,8 +283,6 @@ class RelevanceService(IRelevanceService):
 
     async def _catalog(self) -> dict[str, int]:
         async with self._scope_factory() as scope:
-            from sqlalchemy.ext.asyncio import AsyncSession
-
             session = scope.resolve(AsyncSession)
             rows = (await session.execute(select(products.c.name, products.c.id))).all()
         return {row.name: row.id for row in rows}
