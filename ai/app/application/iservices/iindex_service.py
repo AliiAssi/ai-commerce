@@ -64,5 +64,9 @@ class IIndexService(ABC):
         """Release this instance's leases on shutdown (§11 rule 7)."""
 
     @abstractmethod
+    async def prune_query_cache(self) -> int:
+        """Delete expired query-embedding cache rows, no more often than its own interval."""
+
+    @abstractmethod
     def backoff_seconds(self, attempts: int) -> float:
         """Capped exponential backoff for a job that has already failed `attempts` times."""

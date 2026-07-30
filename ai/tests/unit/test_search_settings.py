@@ -4,6 +4,7 @@ import pytest
 from pydantic import ValidationError
 
 from app.core.config import DatabaseSettings, Settings
+from app.core.vector_schema import EMBEDDING_VECTOR_DIMENSIONS
 
 BASE = {
     "DATABASE_URL": "postgresql://u:p@localhost:5432/db",
@@ -15,6 +16,20 @@ BASE = {
 
 def make(**overrides) -> Settings:
     return Settings(_env_file=None, **{**BASE, **overrides})
+
+
+def enabled(**overrides) -> Settings:
+    """The smallest configuration the restored guard accepts, plus whatever a case overrides."""
+    return make(
+        **{
+            "SMART_SEARCH_ENABLED": True,
+            "EMBEDDING_PROVIDER": "gemini",
+            "EMBEDDING_MODEL": "gemini-embedding-001",
+            "EMBEDDING_DIMENSIONS": EMBEDDING_VECTOR_DIMENSIONS,
+            "EMBEDDING_API_KEY": "a-key",
+            **overrides,
+        }
+    )
 
 
 def test_smart_search_is_off_by_default():
@@ -34,14 +49,49 @@ def test_enabling_smart_search_without_a_model_refuses_to_boot():
 
 
 def test_enabling_smart_search_with_a_full_model_config_is_accepted():
-    settings = make(
-        SMART_SEARCH_ENABLED=True,
-        EMBEDDING_PROVIDER="somebody",
-        EMBEDDING_MODEL="some-multilingual-model",
-        EMBEDDING_DIMENSIONS=1024,
-    )
+    settings = enabled()
     assert settings.SMART_SEARCH_ENABLED is True
-    assert settings.EMBEDDING_DIMENSIONS == 1024
+    assert settings.EMBEDDING_DIMENSIONS == EMBEDDING_VECTOR_DIMENSIONS
+
+
+def test_enabling_smart_search_without_a_key_refuses_to_boot():
+    # A provider and a model with no credential is a configuration that cannot embed anything.
+    # Before phase 6 this booted, because the guard checked three names and this was not one.
+    with pytest.raises(ValidationError, match="EMBEDDING_API_KEY"):
+        enabled(EMBEDDING_API_KEY="")
+
+
+@pytest.mark.parametrize("width", [384, 1536])
+def test_a_width_the_schema_was_not_migrated_with_refuses_to_boot(width: int):
+    # The vector columns are vector(768). A width that disagrees would not fail at boot without
+    # this check — it would fail on the first write, after a whole backfill had been paid for and
+    # thrown away, which is why these settings are pinned in render.yaml rather than
+    # dashboard-managed.
+    with pytest.raises(ValidationError, match="EMBEDDING_DIMENSIONS"):
+        enabled(EMBEDDING_DIMENSIONS=width)
+
+
+def test_a_half_configured_fallback_provider_refuses_to_boot():
+    # Otherwise the fallback column is enqueued for backfill on every sweep and fails every time,
+    # burning attempts on a provider nobody finished configuring.
+    with pytest.raises(ValidationError, match="EMBEDDING_FALLBACK"):
+        enabled(EMBEDDING_FALLBACK_PROVIDER="openrouter")
+
+
+def test_a_fully_configured_fallback_provider_is_accepted():
+    settings = enabled(
+        EMBEDDING_FALLBACK_PROVIDER="openrouter",
+        EMBEDDING_FALLBACK_MODEL="openai/text-embedding-3-large",
+        EMBEDDING_FALLBACK_API_KEY="another-key",
+    )
+    assert settings.EMBEDDING_FALLBACK_MODEL == "openai/text-embedding-3-large"
+
+
+def test_the_semantic_floor_starts_uncalibrated():
+    # 0.0 admits everything. §7.4 requires it to be calibrated from the §15 corpus, and shipping
+    # a guessed threshold would silently drop good results in whichever language went unmeasured.
+    settings = make()
+    assert settings.SEARCH_SEMANTIC_MIN_SIMILARITY >= 0.0
 
 
 def test_the_search_models_are_configured_separately_from_the_chat_model():

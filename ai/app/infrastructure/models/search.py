@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
+from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
     BigInteger,
     Boolean,
@@ -19,6 +20,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB, TSVECTOR
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app.core.vector_schema import EMBEDDING_VECTOR_DIMENSIONS
 from app.infrastructure.database.base import Base
 
 # The search schema. This service owns retrieval, so it owns these tables, and they carry the
@@ -29,10 +31,6 @@ from app.infrastructure.database.base import Base
 # enforces it or whether we hope for the best. Enforcing it means a deleted product cannot leave
 # a stranded search document behind, and it costs one ordering rule: the web service's migrations
 # run before this service's, which is already how the test and CI setups work.
-#
-# The embedding columns are deliberately absent. A vector(n) column and its index bake in a
-# dimension count that cannot be changed without re-embedding the whole catalog, so they wait
-# until a model has actually been measured and chosen. Everything here is useful without them.
 
 # A foreign key needs its target resolvable in the same MetaData, and the real products table
 # lives in store_metadata (store_tables.py) because this service only reads it. Declaring the
@@ -42,6 +40,24 @@ from app.infrastructure.database.base import Base
 products = Table("products", Base.metadata, Column("id", Integer, primary_key=True))
 
 
+def _hnsw(name: str, column: str) -> Index:
+    """An HNSW index with cosine operators (§10.2).
+
+    Cosine rather than L2 because the retrieval query ranks by `1 - (embedding <=> :q)`, and an
+    index built for a different operator class simply would not be used — the query would fall
+    back to a sequential scan and nothing would say so except a latency graph. `m` and
+    `ef_construction` are pgvector's own defaults, named here so tuning them is a visible change
+    rather than an inherited one.
+    """
+    return Index(
+        name,
+        column,
+        postgresql_using="hnsw",
+        postgresql_ops={column: "vector_cosine_ops"},
+        postgresql_with={"m": 16, "ef_construction": 64},
+    )
+
+
 class SearchDocument(Base):
     __tablename__ = "ai_search_documents"
     __table_args__ = (
@@ -49,6 +65,8 @@ class SearchDocument(Base):
         Index("ix_ai_search_documents_simple", "search_vector_simple", postgresql_using="gin"),
         # Lets the repair sweep find documents left behind by a document-format change.
         Index("ix_ai_search_documents_version", "document_version"),
+        _hnsw("ix_ai_search_documents_embedding", "embedding"),
+        _hnsw("ix_ai_search_documents_fallback_embedding", "fallback_embedding"),
     )
 
     product_id: Mapped[int] = mapped_column(
@@ -65,6 +83,30 @@ class SearchDocument(Base):
     # names need.
     search_vector_en: Mapped[str | None] = mapped_column(TSVECTOR)
     search_vector_simple: Mapped[str | None] = mapped_column(TSVECTOR)
+
+    # Two embeddings per document, one per configured provider, because vectors from different
+    # models are not comparable: a query embedded by the fallback and compared against a
+    # primary-built column returns arbitrary neighbours rather than none, which §12 treats as
+    # worse than falling back. Keeping both means each comparison has one model on both sides
+    # and provider failover costs no re-embed.
+    #
+    # Nullable, and they must stay nullable: §10.2 forbids making the vector column NOT NULL
+    # until the initial backfill has completed, and the fallback column stays NULL entirely when
+    # no second provider is configured.
+    #
+    # The model and dimensions are stored beside each vector rather than assumed. They are what
+    # lets the sweep notice that a document was embedded by a model the service is no longer
+    # configured with — a state a document-hash comparison cannot see, because the text is
+    # perfectly current.
+    embedding: Mapped[list[float] | None] = mapped_column(Vector(EMBEDDING_VECTOR_DIMENSIONS))
+    embedding_model: Mapped[str | None] = mapped_column(String(100))
+    embedding_dimensions: Mapped[int | None] = mapped_column(Integer)
+
+    fallback_embedding: Mapped[list[float] | None] = mapped_column(
+        Vector(EMBEDDING_VECTOR_DIMENSIONS)
+    )
+    fallback_embedding_model: Mapped[str | None] = mapped_column(String(100))
+    fallback_embedding_dimensions: Mapped[int | None] = mapped_column(Integer)
 
     indexed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
@@ -95,6 +137,42 @@ class SearchIndexJob(Base):
     # A code, never a provider message: these rows are read by operators and must not leak
     # credentials or provider internals.
     last_error_code: Mapped[str | None] = mapped_column(String(64))
+
+
+class SearchQueryEmbedding(Base):
+    """§10.4's bounded query-embedding cache — the reason a provider call is affordable.
+
+    Query embedding measured a p50 of 434 ms against a 3 s deadline, and the free tier started
+    refusing part-way through ninety sequential calls during the phase-5 bake-off. So this is
+    not a latency optimisation on top of a working system; it is what makes sustained query
+    traffic possible at all without Redis.
+
+    The key is a SHA-256 over normalized semantic text, language, model, dimensions and the
+    normalizer version — never the raw query, which §10.4 requires and §13 makes a privacy
+    matter: a cache keyed on what a shopper typed is a log of what shoppers typed. Including the
+    model and dimensions is what keeps two providers' vectors in separate rows instead of one
+    silently serving the other's.
+    """
+
+    __tablename__ = "ai_search_query_embeddings"
+    __table_args__ = (
+        # The prune walks this, and only this. Everything else is a primary-key lookup.
+        Index("ix_ai_search_query_embeddings_expires_at", "expires_at"),
+    )
+
+    cache_key: Mapped[str] = mapped_column(String(64), primary_key=True)
+
+    embedding: Mapped[list[float]] = mapped_column(
+        Vector(EMBEDDING_VECTOR_DIMENSIONS), nullable=False
+    )
+    embedding_model: Mapped[str] = mapped_column(String(100))
+    embedding_dimensions: Mapped[int] = mapped_column(Integer)
+    language: Mapped[str | None] = mapped_column(String(8))
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    # An expiry column rather than a TTL applied at read time: a row that has expired must stop
+    # being served *and* become collectable, and one timestamp does both.
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
 class SearchEvent(Base):

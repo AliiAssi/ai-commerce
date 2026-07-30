@@ -68,6 +68,12 @@ class _Repo(ISearchRepository):
     async def detect_capabilities(self):  # pragma: no cover - not exercised here
         raise NotImplementedError
 
+    async def cached_query_vector(self, cache_key):  # pragma: no cover - not exercised here
+        raise NotImplementedError
+
+    async def store_query_vector(self, cache_key, vector, *, language, ttl_seconds):
+        raise NotImplementedError  # pragma: no cover - not exercised here
+
     async def catalog_terms(self) -> CatalogLexiconDTO:
         if isinstance(self._terms, Exception):
             raise self._terms

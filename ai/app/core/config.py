@@ -9,6 +9,8 @@ from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from pydantic import Field, ValidationError, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from app.core.vector_schema import EMBEDDING_VECTOR_DIMENSIONS
+
 _ASYNCPG_SSL_MODES = {"prefer", "allow", "require", "verify-ca", "verify-full"}
 
 ENV_FILE = Path(__file__).resolve().parents[3] / ".env"
@@ -70,18 +72,39 @@ class Settings(DatabaseSettings):
     # This service owns retrieval, so the models live here beside the chat model. Everything is
     # inert while SMART_SEARCH_ENABLED is false, which is the default.
     #
-    # The embedding and reranker blocks are deliberately empty: both are picked by measuring
-    # candidates against a fixed relevance corpus, and EMBEDDING_DIMENSIONS in particular must
-    # not be guessed, because it is baked into a migration and a vector index that cannot be
-    # changed without re-embedding the whole catalog.
+    # The reranker block is deliberately empty: it is picked by measuring candidates against a
+    # fixed relevance corpus, against the phase-6 baseline this phase establishes.
     SMART_SEARCH_ENABLED: bool = False
 
     EMBEDDING_PROVIDER: str = ""
     EMBEDDING_HOST: str = ""
     EMBEDDING_API_KEY: str = ""
     EMBEDDING_MODEL: str = ""
+    # Validated against EMBEDDING_VECTOR_DIMENSIONS below rather than free: the width is baked
+    # into `vector(n)` and cannot be changed without a migration and a full re-embed.
     EMBEDDING_DIMENSIONS: int | None = None
     EMBEDDING_TIMEOUT_SECONDS: float = 2.0
+
+    # A second provider, embedded into its own column so failover costs no correctness.
+    #
+    # The chosen primary is a free tier whose quota and model availability can change without
+    # notice, and §12 requires embedding failure to degrade rather than fail. A breaker that can
+    # only degrade to lexical is strictly worse than one that can reach a second provider — but
+    # only if the query and the documents it is compared against came from the *same* model, so
+    # the fallback embeds its own column rather than querying the primary's.
+    #
+    # There is no separate dimensions setting. Both columns are vector(EMBEDDING_DIMENSIONS), so
+    # a fallback at another width could not be stored.
+    EMBEDDING_FALLBACK_PROVIDER: str = ""
+    EMBEDDING_FALLBACK_HOST: str = ""
+    EMBEDDING_FALLBACK_API_KEY: str = ""
+    EMBEDDING_FALLBACK_MODEL: str = ""
+
+    # Circuit breaker, per provider and independent of the reranker's (§12). Opening after a run
+    # of failures is what stops every query paying the same timeout; the probe interval is what
+    # closes it again without an operator.
+    EMBEDDING_BREAKER_FAILURES: int = Field(default=3, ge=1)
+    EMBEDDING_BREAKER_RESET_SECONDS: float = Field(default=30.0, gt=0)
 
     RERANKER_PROVIDER: str = ""
     RERANKER_HOST: str = ""
@@ -103,6 +126,41 @@ class Settings(DatabaseSettings):
     SEARCH_RRF_WEIGHT_LEXICAL: float = Field(default=1.0, ge=0.0)
     SEARCH_RRF_WEIGHT_TRIGRAM: float = Field(default=0.5, ge=0.0)
     SEARCH_RELEVANCE_FLOOR: float = Field(default=0.0, ge=0.0)
+
+    # §7.4's "empty set instead of unrelated nearest neighbors", applied where it can actually
+    # work: on cosine similarity, inside the semantic leg.
+    #
+    # SEARCH_RELEVANCE_FLOOR cannot do this job alone and never could. RRF scores a leg's best
+    # result at weight/(k+1) whatever that result is, so `zzzznotathing`'s nearest neighbour
+    # arrives at rank 1 with exactly the same fused score a perfect match would earn. Rank
+    # carries no notion of "and this one is bad". Only a similarity threshold does — and the
+    # semantic leg has to admit candidates no other leg found, or Arabic gains nothing, since
+    # Arabic has no lexical leg at all (§2.1).
+    #
+    # Calibrated against the §15 corpus on 2026-07-29, not guessed. Every gating case passes for
+    # any value in (0.6344, 0.6562]; 0.645 is the midpoint, ~0.011 clear of both edges.
+    #
+    #   0.6344  the highest similarity any excluded product reaches — `ar-not-in-catalog`
+    #           (ماكينة قهوة كهربائية) scoring Hammered Copper Rakwe. Below this the hard
+    #           negatives leak.
+    #   0.6562  the lowest similarity a required product reaches with no other leg to find it —
+    #           `ar-sour-for-fattoush` (شيء حامض للفتوش) scoring Pomegranate Molasses. Above this
+    #           Arabic recall breaks.
+    #
+    # Both edges are Arabic, in both directions. `en-nonsense` and `en-not-in-catalog` clear at
+    # 0.5915 and 0.5984, so English never constrains this value — the same asymmetry the phase-5
+    # baseline found, from the other side.
+    #
+    # This number is a property of `gemini-embedding-001` at 768 dimensions. Similarity scales
+    # differ between models, so changing EMBEDDING_MODEL means measuring this again.
+    SEARCH_SEMANTIC_MIN_SIMILARITY: float = Field(default=0.645, ge=0.0, le=1.0)
+
+    # HNSW's query-side knobs, which §14.3 requires to be tunable. `ef_search` trades recall for
+    # latency; iterative scan is what stops a filtered query silently under-returning when the
+    # approximate index hands back fewer rows than the filter needs (§7.4). `relaxed_order` keeps
+    # the scan cheap — exact ordering is re-established by RRF and §7.4's tie-breakers anyway.
+    SEARCH_HNSW_EF_SEARCH: int = Field(default=100, ge=1, le=1000)
+    SEARCH_HNSW_ITERATIVE_SCAN: str = Field(default="relaxed_order")
 
     # How much each part of a document counts when the lexical leg ranks it. These multiply the
     # setweight labels the index worker stores — A on the product name, B on category and
@@ -129,6 +187,10 @@ class Settings(DatabaseSettings):
     SEARCH_INDEX_MIN_COVERAGE: float = Field(default=0.95, ge=0.0, le=1.0)
 
     SEARCH_QUERY_CACHE_TTL_SECONDS: int = Field(default=86_400, ge=0)
+    # §10.4 requires the cache to have a pruning job. It runs inside the index worker rather than
+    # as a second process, on its own much longer clock: one indexed DELETE per sweep would be
+    # 4,320 pointless statements a day to collect rows that live for one.
+    SEARCH_QUERY_CACHE_PRUNE_SECONDS: float = Field(default=3600.0, gt=0)
     SEARCH_EVENT_QUERY_RETENTION_DAYS: int = Field(default=30, ge=1)
     SEARCH_EVENT_METRIC_RETENTION_DAYS: int = Field(default=365, ge=1)
 
@@ -140,10 +202,21 @@ class Settings(DatabaseSettings):
     def _check_smart_search(self) -> Settings:
         # Refusing to boot beats silently serving lexical results under a flag that claims
         # semantic search.
+        #
+        # This used to check only that three settings were non-empty, which stopped guarding
+        # anything the moment the bake-off filled all three in: the flag could then be switched
+        # on with no vector column and no bound client. What it checks now is that the
+        # configuration could actually describe the schema. The other half — that the column and
+        # the client really exist — needs a database and lives in main.py's boot probe.
         if self.SMART_SEARCH_ENABLED:
             missing = [
                 name
-                for name in ("EMBEDDING_PROVIDER", "EMBEDDING_MODEL", "EMBEDDING_DIMENSIONS")
+                for name in (
+                    "EMBEDDING_PROVIDER",
+                    "EMBEDDING_MODEL",
+                    "EMBEDDING_DIMENSIONS",
+                    "EMBEDDING_API_KEY",
+                )
                 if not getattr(self, name)
             ]
             if missing:
@@ -151,6 +224,36 @@ class Settings(DatabaseSettings):
                     f"SMART_SEARCH_ENABLED requires {', '.join(missing)}. "
                     "Choose and benchmark an embedding model first."
                 )
+            if self.EMBEDDING_DIMENSIONS != EMBEDDING_VECTOR_DIMENSIONS:
+                # A width that disagrees with the column would not fail at boot without this —
+                # it would fail on the first write, after a whole backfill had been paid for and
+                # thrown away. That is why the four embedding settings are pinned in render.yaml
+                # rather than dashboard-managed.
+                raise ValueError(
+                    f"EMBEDDING_DIMENSIONS={self.EMBEDDING_DIMENSIONS} does not match the "
+                    f"vector({EMBEDDING_VECTOR_DIMENSIONS}) columns this schema was migrated "
+                    "with. Changing the width needs a migration and a full re-embed, not a "
+                    "settings change."
+                )
+            fallback = (
+                self.EMBEDDING_FALLBACK_PROVIDER,
+                self.EMBEDDING_FALLBACK_MODEL,
+                self.EMBEDDING_FALLBACK_API_KEY,
+            )
+            if any(fallback) and not all(fallback):
+                # Half-configured is worse than absent: the fallback column would be enqueued for
+                # backfill on every sweep and fail every time.
+                raise ValueError(
+                    "EMBEDDING_FALLBACK_PROVIDER, EMBEDDING_FALLBACK_MODEL and "
+                    "EMBEDDING_FALLBACK_API_KEY must be set together or not at all."
+                )
+        # SET LOCAL takes no bound parameters, so this value reaches SQL as text. Checking it
+        # here means a typo is a boot failure rather than an error on the first semantic query.
+        if self.SEARCH_HNSW_ITERATIVE_SCAN not in ("off", "relaxed_order", "strict_order"):
+            raise ValueError(
+                "SEARCH_HNSW_ITERATIVE_SCAN must be one of off, relaxed_order, strict_order; "
+                f"got {self.SEARCH_HNSW_ITERATIVE_SCAN!r}"
+            )
         # The reranker gets part of the overall search budget, never more than all of it.
         if self.RERANKER_TIMEOUT_SECONDS > self.SEARCH_DEADLINE_SECONDS:
             raise ValueError(

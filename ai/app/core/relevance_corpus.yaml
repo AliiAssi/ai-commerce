@@ -577,11 +577,21 @@ cases:
   - id: en-not-in-catalog
     query: espresso machine
     language: en
-    source: draft
+    source: spec
+    # §15's quality-gate list rather than one of its query tables: "no-result guard: unrelated
+    # nearest neighbors do not pass the relevance floor". The tables enumerate queries; this
+    # gate is stated once and applies to all of them.
+    section: "15"
     excluded: [Copper Coffee Set, Lebanese Coffee with Cardamom, Dark Roast Coffee Beans]
     note: >-
       The catalog has no appliances. Returning coffee products because they share a topic is
       the nearest-neighbour failure §7.4's floor exists to prevent.
+
+      PROMOTED to spec in phase 6, deliberately and with the owner's agreement. It and its
+      Arabic twin are the only evidence that the floor rejects a topically-related-but-absent
+      product, which is the exact failure a vector leg introduces and which en-nonsense — random
+      letters, similar to nothing — cannot detect. Both are hard negatives with `excluded` lists
+      rather than judgements about ranking, so neither needs a native reading to be trustworthy.
 
   - id: en-nonsense-two
     query: qqxzptlk
@@ -907,11 +917,17 @@ cases:
   - id: ar-not-in-catalog
     query: ماكينة قهوة كهربائية
     language: ar
-    source: draft
+    source: spec
+    section: "15"  # the no-result guard, as above
     excluded: [Copper Coffee Set, Hammered Copper Rakwe]
     note: >-
       There are no appliances. Returning the copper set because it is coffee-shaped is the
       nearest-neighbour failure the relevance floor exists to prevent — in Arabic this time.
+
+      PROMOTED to spec in phase 6 alongside en-not-in-catalog; the reasoning is written out
+      there. This one matters more, not less: Arabic has no lexical leg against an English
+      catalog, so an Arabic query's candidates come from the semantic leg alone and there is no
+      second opinion to keep an unrelated neighbour out.
 
   # mixed language, which §15.3 covers with only one case today
   - id: mixed-soap-min-price

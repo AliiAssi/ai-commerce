@@ -4,9 +4,12 @@ import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.application.iservices.iindex_service import IIndexService
+from app.application.llm.embedding_providers import EmbeddingProviders
 from app.application.services.index_worker import IndexWorker
 from app.application.tools.registry import ToolRegistry
 from app.core.auth import MCPAuthMiddleware
@@ -16,6 +19,7 @@ from app.core.logging import RequestContextMiddleware, setup_logging
 from app.core.prompts import PromptLibrary
 from app.core.registry import configure
 from app.core.search_aliases import AliasError, AliasLibrary
+from app.core.vector_schema import EMBEDDING_VECTOR_DIMENSIONS
 from app.infrastructure.irepositories.isearch_repository import ISearchRepository
 from app.infrastructure.repositories.search_repository import SearchCapabilities
 from app.presentation.controllers import chat_controller, health_controller, search_controller
@@ -84,6 +88,60 @@ async def probe_index_coverage() -> None:
     )
 
 
+async def verify_semantic_readiness(settings: Settings) -> None:
+    """Check at boot that `SMART_SEARCH_ENABLED` describes something that exists (§18).
+
+    The settings validator can only compare settings to each other. It cannot see whether the
+    vector column was ever migrated, or whether an embedding client is actually bound — and the
+    version of this check that only asked whether three settings were non-empty stopped guarding
+    anything the moment the bake-off filled all three in. The flag could then be switched on with
+    no column and no client, and §18's prohibition on shipping lexical-only search under the name
+    of semantic search would be one configuration mistake away.
+
+    Fatal only when the flag is on, like `verify_search_lexicon` and for the same reason: this
+    process also serves chat and MCP, and refusing to start over a feature nobody is reading yet
+    trades a real outage for a hypothetical one. A database that cannot be reached is a different
+    condition again and is never fatal — the ordinary API must keep serving (§12), and the next
+    boot checks again.
+    """
+    if not settings.SMART_SEARCH_ENABLED:
+        return
+
+    if not container.resolve(EmbeddingProviders).any_configured:
+        raise RuntimeError(
+            "SMART_SEARCH_ENABLED is on but no embedding client is bound. Set EMBEDDING_PROVIDER "
+            "to a known adapter, or turn the flag off."
+        )
+
+    try:
+        async with open_scope() as scope:
+            column = await scope.resolve(AsyncSession).scalar(
+                text(
+                    "SELECT atttypmod FROM pg_attribute "
+                    "WHERE attrelid = to_regclass('public.ai_search_documents') "
+                    "AND attname = 'embedding' AND NOT attisdropped"
+                )
+            )
+    except SQLAlchemyError as exc:
+        logger.warning(
+            "semantic readiness not probed: database unavailable (%s)", exc.__class__.__name__
+        )
+        return
+
+    if column is None:
+        raise RuntimeError(
+            "SMART_SEARCH_ENABLED is on but ai_search_documents has no embedding column. "
+            "Run this service's migrations against this database."
+        )
+    if column != EMBEDDING_VECTOR_DIMENSIONS:
+        # Reachable only by pointing at a database migrated at a different width — the settings
+        # validator already refuses a mismatched EMBEDDING_DIMENSIONS.
+        raise RuntimeError(
+            f"ai_search_documents.embedding is vector({column}) but this build expects "
+            f"vector({EMBEDDING_VECTOR_DIMENSIONS}). Re-migrate and re-embed."
+        )
+
+
 async def verify_search_lexicon(settings: Settings) -> None:
     """Check at boot that the alias file still describes the catalog (§6).
 
@@ -137,6 +195,7 @@ def create_app() -> FastAPI:
     async def lifespan(_: FastAPI):
         await probe_search_capabilities()
         await probe_index_coverage()
+        await verify_semantic_readiness(settings)
         await verify_search_lexicon(settings)
         # §11 puts the worker in the serving process, so indexing needs no second host. The
         # flag exists for the deployments that drive it from the CLI instead, and for tests,

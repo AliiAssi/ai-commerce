@@ -122,9 +122,28 @@ class SearchCandidate(BaseModel):
 
     product_id: int
     rrf_score: float
+    semantic_rank: int | None = None
     lexical_rank: int | None = None
     trigram_rank: int | None = None
     exact_name_match: bool = False
+
+
+class QueryVectorDTO(BaseModel):
+    """One query embedding, and the column it is allowed to be compared against.
+
+    The slot travels with the vector rather than being looked up at the point of use, because the
+    two must never come apart. Vectors from different models occupy different spaces: comparing
+    this one against the wrong column returns neighbours that are not merely worse but arbitrary,
+    and nothing downstream — not the relevance floor, not RRF, not the reranker — can tell that
+    from a good answer.
+    """
+
+    model_config = {"frozen": True}
+
+    values: tuple[float, ...]
+    slot: str
+    embedding_model: str
+    dimensions: int
 
 
 class RetrievalRequest(BaseModel):
@@ -142,6 +161,10 @@ class RetrievalRequest(BaseModel):
     filters: EffectiveFilters
     page: int = Field(default=1, ge=1)
     page_size: int = Field(default=12, ge=1, le=100)
+    # Absent means no semantic leg for this query — the feature is off, the provider failed, the
+    # slot's column is not populated enough to read, or the query is pure constraints. Retrieval
+    # then behaves exactly as it did in phase 4, which is §12's step 3.
+    query_vector: QueryVectorDTO | None = None
 
 
 class SearchQuery(BaseModel):
@@ -202,8 +225,14 @@ class RetrievalResult(BaseModel):
     page_size: int
     # Which legs returned anything. The caller derives search.mode from this rather than the
     # repository asserting a mode it cannot fully know (§9.2).
+    semantic_hits: int = 0
     lexical_hits: int = 0
     trigram_hits: int = 0
+    # Whether the semantic leg ran at all, which is not the same as whether it matched anything.
+    # A leg that ran and found nothing above the similarity floor is a working semantic search
+    # reporting an honest empty; a leg that never ran is a degradation, and §9.2 needs the two
+    # told apart to pick a mode.
+    semantic_used: bool = False
     # True when there was no semantic text and this was a filtered browse.
     filters_only: bool = False
     # Which rung of §12's ladder the lexical leg actually ran on: this service's documents

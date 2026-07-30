@@ -4,6 +4,7 @@ import logging
 import re
 from dataclasses import dataclass
 
+from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
     REAL,
     ColumnElement,
@@ -19,29 +20,41 @@ from sqlalchemy import (
     text,
 )
 from sqlalchemy.dialects.postgresql import ARRAY
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.application.dtos.search_dto import (
     CatalogLexiconDTO,
     EffectiveFilters,
+    QueryVectorDTO,
     RetrievalRequest,
     RetrievalResult,
 )
 from app.application.search.normalizer import fold_for_matching, tokenize
 from app.core.config import Settings
 from app.core.index_state import IndexCoverage
+from app.core.vector_schema import FALLBACK_SLOT, PRIMARY_SLOT
 from app.infrastructure.database.store_tables import categories, products
 from app.infrastructure.irepositories.isearch_repository import ISearchRepository
-from app.infrastructure.models.search import SearchDocument
+from app.infrastructure.models.search import SearchDocument, SearchQueryEmbedding
 
 logger = logging.getLogger(__name__)
 
-# Bumped from "1" in phase 4: the lexical leg now reads this service's weighted documents rather
-# than web's flat products.search_vector, which changes the ordering it produces. §14.5 makes a
-# ranking change that cannot be attributed to a version unmeasurable.
-RANKER_VERSION = "2"
+# Bumped from "2" in phase 6: a semantic leg joins the fusion, which changes the ordering for
+# every query that has one. §14.5 makes a ranking change that cannot be attributed to a version
+# unmeasurable.
+RANKER_VERSION = "3"
 
 documents = SearchDocument.__table__
+query_embeddings = SearchQueryEmbedding.__table__
+
+# Which column each embedding slot reads. The mapping is duplicated from the index repository
+# rather than shared, because these are the two places that may name a vector column and a shared
+# helper between two repositories would be a coupling neither needs.
+_SLOT_COLUMN = {
+    PRIMARY_SLOT: documents.c.embedding,
+    FALLBACK_SLOT: documents.c.fallback_embedding,
+}
 
 # The trigram leg's only hard dependency. Named here so both the startup probe and the runtime
 # recovery below agree on what they are looking for.
@@ -103,8 +116,23 @@ def _tied_rank(ranked):
     return func.rank().over(order_by=ranked.c.score.desc())
 
 
-def _empty(request: RetrievalRequest) -> RetrievalResult:
-    return RetrievalResult(product_ids=[], total=0, page=request.page, page_size=request.page_size)
+def _empty(request: RetrievalRequest, *, semantic_used: bool = False) -> RetrievalResult:
+    """No results, and whether a semantic leg was among the things that found none.
+
+    `semantic_used` has to be carried even here — especially here. Found in the live smoke test:
+    `zzzznotathing` correctly returned nothing, and reported `degraded: true` with
+    `index_incomplete`, because the empty path dropped the flag and the caller could only
+    conclude the semantic leg never ran. That is an operator being sent to look at a healthy
+    index because search worked. A semantic search that runs and honestly finds nothing is not
+    degraded; it is §7.4 doing its job.
+    """
+    return RetrievalResult(
+        product_ids=[],
+        total=0,
+        page=request.page,
+        page_size=request.page_size,
+        semantic_used=semantic_used,
+    )
 
 
 def filtered_products(filters: EffectiveFilters) -> Select:
@@ -150,7 +178,13 @@ class SearchCapabilities:
 
 
 class SearchRepository(ISearchRepository):
-    """Lexical + trigram retrieval fused by RRF, against the catalog the web service owns.
+    """Semantic + lexical + trigram retrieval fused by RRF, against the catalog web owns.
+
+    The semantic leg is the one that can be absent. It runs only when the caller supplied a query
+    vector *and* the column that vector belongs to is populated enough to read; otherwise fusion
+    is exactly the two-leg shape phase 4 shipped, which is §12's step 3. Nothing else changes
+    when it is missing, which is what makes an embedding outage a narrower answer rather than a
+    different system.
 
     §12's ladder gives the lexical leg two sources, and which one runs is decided by index
     coverage rather than by configuration. Step 3 is this service's `ai_search_documents`, whose
@@ -187,8 +221,15 @@ class SearchRepository(ISearchRepository):
 
     # ---- filtered browse --------------------------------------------------------------------
 
-    async def _browse(self, request: RetrievalRequest) -> RetrievalResult:
-        """No semantic text, so §7.2 skips retrieval entirely and filters the catalog."""
+    async def _browse(
+        self, request: RetrievalRequest, *, semantic_used: bool = False
+    ) -> RetrievalResult:
+        """No semantic text, so §7.2 skips retrieval entirely and filters the catalog.
+
+        Also reached as the constraint fallback when fusion matched nothing but the shopper
+        expressed a real filter, which is why it carries `semantic_used`: that call did run a
+        semantic leg, and reporting otherwise would blame the index for an empty match.
+        """
         stmt = filtered_products(request.filters)
         total = await self._session.scalar(
             select(func.count()).select_from(stmt.subquery("filtered_count"))
@@ -209,6 +250,7 @@ class SearchRepository(ISearchRepository):
             page=request.page,
             page_size=request.page_size,
             filters_only=True,
+            semantic_used=semantic_used,
         )
 
     # ---- fused retrieval --------------------------------------------------------------------
@@ -222,54 +264,43 @@ class SearchRepository(ISearchRepository):
         # query that built one leg from step 3 and reported step 4 would be unattributable.
         use_documents = self._coverage.ready
         lex = self._lexical_cte(filtered, request.semantic_text, use_documents=use_documents)
-        if lex is None:
+        sem = await self._semantic_cte(filtered, request.query_vector)
+        semantic_used = sem is not None
+        if lex is None and sem is None:
             # The semantic text held no usable token at all — so neither can the trigram leg,
             # which reads the same tokens through a length filter. Same rule as an empty fused
             # set below: constraints still answer, a bare unmatchable query does not.
-            return await self._browse(request) if filters.has_filters else _empty(request)
+            return (
+                await self._browse(request, semantic_used=semantic_used)
+                if filters.has_filters
+                else _empty(request, semantic_used=semantic_used)
+            )
 
         tokens = trigram_tokens(request.semantic_text) if self._capabilities.trigram else []
         trg = self._trigram_cte(filtered, tokens, filters) if tokens else None
 
-        score = self._rrf_score(lex, trg)
-        null_rank = literal(None, type_=Integer)
-        if trg is None:
-            fused_source: Select = select(
-                lex.c.id.label("id"),
-                score.label("score"),
-                lex.c.rank.label("lex_rank"),
-                null_rank.label("trg_rank"),
-            ).select_from(lex)
-        else:
-            fused_source = select(
-                func.coalesce(lex.c.id, trg.c.id).label("id"),
-                score.label("score"),
-                lex.c.rank.label("lex_rank"),
-                trg.c.rank.label("trg_rank"),
-            ).select_from(lex.join(trg, lex.c.id == trg.c.id, full=True))
-
+        legs = {"sem": sem, "lex": lex, "trg": trg}
+        eligible = self._fuse(legs).cte("fused")
         # §7.4: below the floor the system returns nothing rather than unrelated neighbours.
-        # The floor stays 0.0 until phase 6 calibrates it against the acceptance corpus, where
-        # `zzzznotathing` is the case it has to keep empty.
-        eligible = fused_source.cte("fused")
         eligible = (
-            select(eligible.c.id, eligible.c.score, eligible.c.lex_rank, eligible.c.trg_rank)
+            select(*eligible.c)
             .where(eligible.c.score >= settings.SEARCH_RELEVANCE_FLOOR)
             .cte("eligible")
         )
 
         # One round trip for the exact total and for which legs contributed. count(col) skips
-        # nulls, so the two leg counts fall out of the same scan.
+        # nulls, so every leg count falls out of the same scan.
         counts = (
             await self._session.execute(
                 select(
                     func.count(),
+                    func.count(eligible.c.sem_rank),
                     func.count(eligible.c.lex_rank),
                     func.count(eligible.c.trg_rank),
                 ).select_from(eligible)
             )
         ).one()
-        total, lexical_hits, trigram_hits = counts
+        total, semantic_hits, lexical_hits, trigram_hits = counts
         if not total:
             # Neither leg matched. If the shopper expressed a deterministic constraint, that
             # constraint is still a real answer and must be served: `صابون تقليدي من طرابلس`
@@ -279,7 +310,11 @@ class SearchRepository(ISearchRepository):
             # This does not soften §7.4's empty-set rule, which is about the relevance floor
             # admitting unrelated neighbours. `zzzznotathing` carries no filter, so it falls
             # through here and correctly stays empty rather than returning the whole catalog.
-            return await self._browse(request) if filters.has_filters else _empty(request)
+            return (
+                await self._browse(request, semantic_used=semantic_used)
+                if filters.has_filters
+                else _empty(request, semantic_used=semantic_used)
+            )
 
         page = (
             select(products.c.id)
@@ -299,10 +334,116 @@ class SearchRepository(ISearchRepository):
             total=total,
             page=request.page,
             page_size=request.page_size,
+            semantic_hits=semantic_hits,
             lexical_hits=lexical_hits,
             trigram_hits=trigram_hits,
+            semantic_used=semantic_used,
             documents_used=use_documents,
         )
+
+    # ---- fusion ------------------------------------------------------------------------------
+
+    def _fuse(self, legs: dict[str, object]) -> Select:
+        """Chain whichever legs are present into one FULL OUTER JOIN and sum their RRF terms.
+
+        Built by folding rather than by branching. Two optional legs was two cases and could be
+        written out; three is eight, and the seventh would be the one nobody exercised. Every leg
+        contributes a `<name>_rank` column that is NULL when it did not return the product, which
+        is also what makes the per-leg hit counts a single `count(col)` on the same scan.
+
+        The join condition accumulates a COALESCE over the ids already joined, which is what a
+        chain of full outer joins needs: after the first join either side can be NULL, so joining
+        the next leg against only one of them would drop every row the other leg found alone —
+        and for Arabic the semantic leg is routinely the only one that found anything (§2.1).
+        """
+        present = [(name, leg) for name, leg in legs.items() if leg is not None]
+        joined = present[0][1]
+        ids = [present[0][1].c.id]
+        for _, leg in present[1:]:
+            key = ids[0] if len(ids) == 1 else func.coalesce(*ids)
+            joined = joined.join(leg, key == leg.c.id, full=True)
+            ids.append(leg.c.id)
+
+        null_rank = literal(None, type_=Integer)
+        columns = [
+            (func.coalesce(*ids) if len(ids) > 1 else ids[0]).label("id"),
+            self._rrf_score(present).label("score"),
+        ]
+        for name in legs:
+            leg = legs[name]
+            columns.append((leg.c.rank if leg is not None else null_rank).label(f"{name}_rank"))
+        return select(*columns).select_from(joined)
+
+    # ---- the semantic leg ----------------------------------------------------------------------
+
+    async def _semantic_cte(self, filtered, query_vector: QueryVectorDTO | None):
+        """Nearest neighbours by cosine distance, above a calibrated similarity floor (§7.2).
+
+        Returns None — and the query falls back to exactly its phase-4 behaviour — when there is
+        no vector, or when the column this vector belongs to is not populated enough to read.
+        Both are §12 degradations, and the second is the one worth naming: running the semantic
+        leg over a half-filled column would rank whichever products happen to be embedded above
+        products that simply have not been reached yet, which reads as a relevance bug and is an
+        indexing one.
+
+        **The similarity threshold is where §7.4's empty-set rule lives.** `SEARCH_RELEVANCE_FLOOR`
+        over the fused RRF score cannot do it: rank 1 scores `weight/(k+1)` whether the neighbour
+        is the right product or the only product in a catalog of unrelated things, so
+        `zzzznotathing` would arrive with a perfect fused score. Cosine similarity is the only
+        signal in the pipeline that can say "and this one is bad", so it is what the corpus
+        calibrates.
+
+        The threshold cannot be replaced by "require a second leg to agree" either. Arabic has no
+        lexical leg at all against an English catalog (§2.1), so semantic-only candidates are
+        exactly the ones this phase exists to admit.
+        """
+        if query_vector is None or not self._coverage.semantic(query_vector.slot):
+            return None
+        column = _SLOT_COLUMN.get(query_vector.slot)
+        if column is None:
+            return None
+
+        # §14.3 requires the HNSW parameters to be tunable, and §7.4 forbids an approximate index
+        # letting a filtered query under-return without detection. `iterative_scan` is what makes
+        # pgvector keep scanning when the filter rejects most of what the index handed back;
+        # relaxed order is enough because RRF and §7.4's tie-breakers re-establish the ordering
+        # anyway.
+        #
+        # `set_config(..., is_local => true)` rather than two SET LOCAL statements: it is
+        # transaction-local in exactly the same way, it fits in one round trip on the hot path,
+        # and its arguments are ordinary bound parameters. Two SET LOCALs cannot be sent
+        # together — asyncpg prepares every statement and Postgres refuses multiple commands in
+        # a prepared statement — and SET LOCAL takes no parameters at all, so the values would
+        # have to be interpolated into SQL.
+        await self._session.execute(
+            text(
+                "SELECT set_config('hnsw.ef_search', :ef_search, true), "
+                "set_config('hnsw.iterative_scan', :iterative_scan, true)"
+            ),
+            {
+                "ef_search": str(self._settings.SEARCH_HNSW_EF_SEARCH),
+                "iterative_scan": self._settings.SEARCH_HNSW_ITERATIVE_SCAN,
+            },
+        )
+
+        vector = bindparam("query_vector", value=list(query_vector.values), type_=Vector)
+        distance = column.cosine_distance(vector)
+        # Cosine *similarity*, so the threshold reads the way the corpus talks about it and 1.0
+        # is a perfect match rather than a perfect mismatch.
+        similarity = literal(1.0) - distance
+        ranked = (
+            select(documents.c.product_id.label("id"), similarity.label("score"))
+            .select_from(documents.join(filtered, filtered.c.id == documents.c.product_id))
+            .where(
+                column.is_not(None),
+                similarity >= self._settings.SEARCH_SEMANTIC_MIN_SIMILARITY,
+            )
+            # ORDER BY distance with a LIMIT, in the form the HNSW index can serve (§14.3).
+            .order_by(distance.asc(), documents.c.product_id.asc())
+            .limit(self._settings.SEARCH_SEMANTIC_CANDIDATES)
+            .subquery("semantic_ranked")
+        )
+        return select(ranked.c.id, _tied_rank(ranked).label("rank")).cte("sem")
 
     # ---- the lexical leg, on either of §12's two sources ---------------------------------------
 
@@ -465,21 +606,29 @@ class SearchRepository(ISearchRepository):
         )
         return select(ranked.c.id, _tied_rank(ranked).label("rank")).cte("trg")
 
-    def _rrf_score(self, lex, trg) -> ColumnElement[float]:
+    def _rrf_score(self, present) -> ColumnElement[float]:
         """Reciprocal rank fusion: weight / (k + rank), summed over the legs that matched.
 
-        §7.2 requires fusion by rank rather than by raw score, because ts_rank and trigram
-        similarity are not on comparable scales and adding them directly would let whichever
-        leg happens to produce larger numbers decide the ordering.
+        §7.2 requires fusion by rank rather than by raw score, because cosine similarity, ts_rank
+        and trigram similarity are not on comparable scales and adding them directly would let
+        whichever leg happens to produce larger numbers decide the ordering.
+
+        Note what this means for the relevance floor. Every leg's best result scores
+        `weight/(k+1)` regardless of how good it is, so the fused score cannot express "nothing
+        here is relevant" — that judgement has to be made on similarity, inside the semantic leg,
+        before ranks exist. See `_semantic_cte`.
         """
         k = self._settings.SEARCH_RRF_K
-        total = func.coalesce(
-            literal(self._settings.SEARCH_RRF_WEIGHT_LEXICAL) / (k + lex.c.rank), 0.0
-        )
-        if trg is not None:
-            total = total + func.coalesce(
-                literal(self._settings.SEARCH_RRF_WEIGHT_TRIGRAM) / (k + trg.c.rank), 0.0
-            )
+        weights = {
+            "sem": self._settings.SEARCH_RRF_WEIGHT_SEMANTIC,
+            "lex": self._settings.SEARCH_RRF_WEIGHT_LEXICAL,
+            "trg": self._settings.SEARCH_RRF_WEIGHT_TRIGRAM,
+        }
+        total: ColumnElement[float] | None = None
+        for name, leg in present:
+            term = func.coalesce(literal(weights[name]) / (k + leg.c.rank), 0.0)
+            total = term if total is None else total + term
+        assert total is not None
         return total
 
     def _ordering(self, request: RetrievalRequest, eligible):
@@ -513,6 +662,62 @@ class SearchRepository(ISearchRepository):
             products.c.review_count.desc(),
             products.c.id.asc(),
         )
+
+    # ---- the query-embedding cache (§10.4) -----------------------------------------------------
+
+    async def cached_query_vector(self, cache_key: str) -> QueryVectorDTO | None:
+        """A live cached embedding, or None.
+
+        Expiry is checked in the predicate rather than by trusting the prune to have run. The
+        prune is a housekeeping job on an hourly clock; correctness cannot wait on it, and a row
+        served past its TTL would be a vector built by a model or normalizer that may since have
+        changed.
+        """
+        row = (
+            await self._session.execute(
+                select(
+                    query_embeddings.c.embedding,
+                    query_embeddings.c.embedding_model,
+                    query_embeddings.c.embedding_dimensions,
+                )
+                .where(
+                    query_embeddings.c.cache_key == cache_key,
+                    query_embeddings.c.expires_at > func.now(),
+                )
+                .limit(1)
+            )
+        ).one_or_none()
+        if row is None:
+            return None
+        return QueryVectorDTO(
+            values=tuple(float(value) for value in row.embedding),
+            # The slot is not stored: the key already contains the model, so a row can only ever
+            # be found by the client that produced it, and the caller knows which slot that was.
+            slot="",
+            embedding_model=row.embedding_model,
+            dimensions=row.embedding_dimensions,
+        )
+
+    async def store_query_vector(
+        self, cache_key: str, vector: QueryVectorDTO, *, language: str, ttl_seconds: int
+    ) -> None:
+        # DO NOTHING rather than DO UPDATE: two concurrent shoppers typing the same query would
+        # otherwise deadlock-race to rewrite an identical row. The key covers the model and the
+        # normalizer version, so an existing row cannot disagree with this one about anything
+        # except how long it has left.
+        stmt = (
+            pg_insert(query_embeddings)
+            .values(
+                cache_key=cache_key,
+                embedding=list(vector.values),
+                embedding_model=vector.embedding_model,
+                embedding_dimensions=vector.dimensions,
+                language=language,
+                expires_at=func.now() + text(f"interval '{int(ttl_seconds)} seconds'"),
+            )
+            .on_conflict_do_nothing(index_elements=["cache_key"])
+        )
+        await self._session.execute(stmt)
 
     async def detect_capabilities(self) -> SearchCapabilities:
         installed = await self._session.scalar(

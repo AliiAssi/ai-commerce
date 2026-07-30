@@ -8,6 +8,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.container import container, open_scope
+from app.core.vector_schema import EMBEDDING_VECTOR_DIMENSIONS
 
 # The search schema this service owns. Nothing here exercises search behaviour, because there is
 # none yet — these tests pin the structural guarantees the rest of the feature will assume.
@@ -40,7 +41,13 @@ class TestExtensions:
 
 class TestSchema:
     @pytest.mark.parametrize(
-        "table", ["ai_search_documents", "ai_search_index_jobs", "ai_search_events"]
+        "table",
+        [
+            "ai_search_documents",
+            "ai_search_index_jobs",
+            "ai_search_events",
+            "ai_search_query_embeddings",
+        ],
     )
     async def test_table_exists(self, app, table: str):
         found = await _scalar(
@@ -58,11 +65,54 @@ class TestSchema:
             "ix_ai_search_index_jobs_claim",
             "ix_ai_search_events_created_at",
             "ix_ai_search_events_zero_result",
+            "ix_ai_search_query_embeddings_expires_at",
         ],
     )
     async def test_index_exists(self, app, index: str):
         found = await _scalar("SELECT count(*) FROM pg_indexes WHERE indexname = :name", name=index)
         assert found == 1
+
+
+class TestVectorColumns:
+    """§10.2's embedding storage. Structural, because the semantic leg assumes all of it."""
+
+    @pytest.mark.parametrize("slot", ["embedding", "fallback_embedding"])
+    async def test_the_vector_column_is_the_width_the_model_was_chosen_at(self, app, slot: str):
+        # atttypmod carries vector(n)'s n. A column built at a different width than
+        # EMBEDDING_DIMENSIONS would not fail until the first write, after a backfill had been
+        # paid for — which is why the boot guard compares the two.
+        width = await _scalar(
+            "SELECT atttypmod FROM pg_attribute "
+            "WHERE attrelid = 'ai_search_documents'::regclass AND attname = :name",
+            name=slot,
+        )
+        assert width == EMBEDDING_VECTOR_DIMENSIONS
+
+    @pytest.mark.parametrize("slot", ["embedding", "fallback_embedding"])
+    async def test_the_vector_column_is_nullable(self, app, slot: str):
+        # §10.2 forbids NOT NULL before the initial backfill completes. Every document is NULL
+        # here the moment this migration lands, and the fallback column stays NULL for good when
+        # no second provider is configured.
+        nullable = await _scalar(
+            "SELECT is_nullable FROM information_schema.columns "
+            "WHERE table_name = 'ai_search_documents' AND column_name = :name",
+            name=slot,
+        )
+        assert nullable == "YES"
+
+    @pytest.mark.parametrize(
+        "index",
+        ["ix_ai_search_documents_embedding", "ix_ai_search_documents_fallback_embedding"],
+    )
+    async def test_the_vector_index_is_hnsw_with_cosine_operators(self, app, index: str):
+        # Retrieval ranks by `1 - (embedding <=> :q)`. An index built for a different operator
+        # class is never chosen, the query silently falls back to a sequential scan, and the only
+        # symptom is latency at a catalog size this test does not have.
+        definition = await _scalar(
+            "SELECT indexdef FROM pg_indexes WHERE indexname = :name", name=index
+        )
+        assert "USING hnsw" in definition
+        assert "vector_cosine_ops" in definition
 
 
 class TestCatalogForeignKeys:

@@ -79,6 +79,25 @@ services:
       # Chosen by bake-off 2026-07-29; changing it requires re-embedding the whole catalog.
       - key: EMBEDDING_DIMENSIONS
         value: "768"
+      # A second provider, into its own vector column. Left unset: it doubles the backfill's
+      # provider spend and both columns' index memory, which on a 512 MB plan is a decision to
+      # take deliberately rather than by default. Set all four together or none — half-configured
+      # is a boot failure, because the fallback column would otherwise be enqueued for backfill
+      # on every sweep and fail every time.
+      - key: EMBEDDING_FALLBACK_PROVIDER
+        sync: false
+      - key: EMBEDDING_FALLBACK_HOST
+        sync: false
+      - key: EMBEDDING_FALLBACK_API_KEY
+        sync: false
+      - key: EMBEDDING_FALLBACK_MODEL
+        sync: false
+      # Pinned for the same reason the width is: it is calibrated against the §15 corpus for
+      # this exact model, and it is the only thing standing between a vector search and a page
+      # of plausible-looking wrong answers for a query the catalog cannot satisfy. Measured band
+      # (0.6344, 0.6562]; this is the midpoint. Re-measure if EMBEDDING_MODEL changes.
+      - key: SEARCH_SEMANTIC_MIN_SIMILARITY
+        value: "0.645"
       - key: RERANKER_PROVIDER
         sync: false
       - key: RERANKER_HOST

@@ -13,12 +13,26 @@ pytestmark = pytest.mark.skipif(
     not os.environ.get("TEST_DATABASE_URL"), reason="TEST_DATABASE_URL not set"
 )
 
-# The phase-4 baseline, measured on 2026-07-29 against §12's step 3 over the seeded catalog.
+# **What this module measures, and what it deliberately does not.**
 #
-# These are floors, not targets. They exist so a change that quietly costs relevance fails here
-# instead of being discovered during the embedding bake-off, where it would be indistinguishable
-# from the model underperforming. Raise them when a phase genuinely improves the number; never
-# lower one to make a run go green without saying so in SMART_SEARCH_PLAN.md.
+# No embedding provider is configured for the suite (see the integration conftest), so every case
+# here runs on §12's degraded path: lexical over the documents, fused with trigram. That is not a
+# gap — it is the configuration the storefront falls back to whenever the provider is down, and it
+# is the one this suite can measure identically on a developer machine and in CI, with no API key
+# and no spend.
+#
+# The semantic numbers are therefore *not* pinned here. They cannot be: FakeEmbeddingClient hashes
+# tokens into buckets and has no cross-lingual behaviour, so asserting Arabic recall against it
+# would prove the fake rather than the model. They are pinned in `test_search_relevance_live.py`,
+# which runs against the real provider and is skipped unless it is asked for, and recorded in
+# SMART_SEARCH_PLAN.md.
+#
+# The phase-4 baseline, measured on 2026-07-29 against §12's step 3 over the seeded catalog and
+# unchanged by phase 6 — which is the point of repeating it. These are floors, not targets: a
+# change that quietly costs relevance fails here rather than being discovered later, where it
+# would be indistinguishable from a model underperforming. Raise them when a phase genuinely
+# improves the number; never lower one to make a run go green without saying so in
+# SMART_SEARCH_PLAN.md.
 BASELINE_OVERALL_RECALL = 0.75
 BASELINE_ARABIC_RECALL = 0.33
 BASELINE_ENGLISH_RECALL = 1.0
@@ -89,25 +103,35 @@ class TestEnglishAlreadyPasses:
         assert failing == []
 
 
-class TestArabicBaseline:
-    """§2.1's known gap, quantified. This is what phase 6 exists to move."""
+class TestArabicWithoutAModel:
+    """§2.1's gap, still exactly where it was — because this is the path with no model in it.
+
+    Phase 6 moved Arabic recall from 0.33 to 1.00, and none of that shows here. It cannot: an
+    Arabic query has no lexical route into an English catalog, so with the embedding provider
+    absent the only Arabic cases that pass are the ones deterministic filters answer. Keeping the
+    number pinned at 0.33 is what makes the degraded path's cost visible instead of assumed —
+    this is what a shopper typing Arabic gets while the provider is down, and it is not good.
+    """
 
     async def test_arabic_is_recorded_at_its_measured_floor(self, report):
         arabic = next(s for s in report.by_language if s.language == "ar")
 
         # Deliberately an inequality against a low number, not an assertion that Arabic works.
-        # An Arabic query cannot match an English catalog lexically, so what passes today passes
-        # on deterministic filters and the constraint fallback alone.
         assert arabic.recall_at_5 >= BASELINE_ARABIC_RECALL
 
-    async def test_arabic_does_not_yet_meet_the_release_gate(self, report):
-        # Asserted so this test starts failing the moment Arabic is fixed, which is the signal to
-        # raise the floors above and delete this case. A gap that is not pinned gets forgotten.
+    async def test_the_degraded_path_still_falls_short_for_arabic(self, report):
+        # The replacement for phase 5's `test_arabic_does_not_yet_meet_the_release_gate`, which
+        # was written to fail the moment Arabic was fixed. It has been fixed — with a provider —
+        # and that test was removed in phase 6 rather than left asserting something now false
+        # about the system. What remains true, and is worth pinning, is narrower: *without* a
+        # provider Arabic still misses §15's gate, so nothing may quietly start treating the
+        # lexical fallback as an acceptable Arabic experience.
         arabic = next(s for s in report.by_language if s.language == "ar")
 
         assert arabic.recall_at_5 < 0.90, (
-            "Arabic recall now meets §15's gate — raise the baselines in this module and remove "
-            "this test; phase 5's decision gate has been cleared"
+            "Arabic recall meets §15's gate with no embedding provider configured. Either the "
+            "suite grew a provider it should not have, or the catalog gained Arabic text — "
+            "either way this module is no longer measuring the degraded path it claims to."
         )
 
     async def test_the_overall_gates_fail_only_because_of_arabic(self, report):
