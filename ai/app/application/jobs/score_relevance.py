@@ -15,8 +15,6 @@ from app.core.registry import configure
 from app.core.relevance import load_corpus
 
 HARD_SET = (
-    "ar-soap-no-origin",
-    "ar-olive-oil-soap-both",
     "ar-tea",
     "ar-gift-for-a-new-home",
     "ar-something-for-breakfast",

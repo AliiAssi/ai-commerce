@@ -425,3 +425,26 @@ class TestIgnoreInferred:
         )
 
         assert filters.origins == ("Tripoli", "Tripoli, North Lebanon")
+
+
+class TestCompoundNounCategories:
+    def test_an_arabic_construct_resolves_to_its_first_noun(self, parser):
+        assert parser.parse("صابون زيت الزيتون").inferred_category_slug == "soap-skincare"
+
+    def test_an_english_compound_resolves_to_its_last_noun(self, parser):
+        assert parser.parse("olive oil soap").inferred_category_slug == "soap-skincare"
+
+    def test_the_arabic_bi_prefix_does_not_change_the_head(self, parser):
+        assert parser.parse("صابون بزيت الزيتون").inferred_category_slug == "soap-skincare"
+
+    def test_a_single_category_is_unaffected_by_the_head_rule(self, parser):
+        assert parser.parse("زيت الزيتون").inferred_category_slug == "olive-oil"
+        assert parser.parse("olive oil").inferred_category_slug == "olive-oil"
+        assert parser.parse("صابون").inferred_category_slug == "soap-skincare"
+        assert parser.parse("soap").inferred_category_slug == "soap-skincare"
+
+    def test_the_longer_alias_no_longer_simply_wins(self, parser):
+        assert parser.parse("صابون زيت الزيتون").inferred_category_slug != "olive-oil"
+
+    def test_a_weak_alias_still_does_not_filter_a_descriptive_query(self, parser):
+        assert parser.parse("something for a Lebanese coffee ritual").inferred_category_slug is None

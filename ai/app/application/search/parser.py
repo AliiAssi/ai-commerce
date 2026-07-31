@@ -70,7 +70,7 @@ class IntentParser:
         sort = self._parse_sort(folded, taken)
 
         semantic_text = self._strip(query.normalized, taken)
-        category_slug = self._parse_category(folded, semantic_text)
+        category_slug = self._parse_category(folded, semantic_text, query.language)
         origin_key = self._parse_origin(folded, semantic_text)
 
         if min_price is not None and max_price is not None and min_price > max_price:
@@ -155,13 +155,41 @@ class IntentParser:
             return span
         return None
 
-    def _parse_category(self, text: str, semantic_text: str) -> str | None:
+    def _parse_category(self, text: str, semantic_text: str, language: str = "en") -> str | None:
         best: tuple[int, str] | None = None
+        matched: list[tuple[int, str]] = []
         for slug, category in self._aliases.categories.items():
             match = self._best_alias(text, semantic_text, category.aliases)
-            if match is not None and (best is None or match > best[0]):
+            if match is None:
+                continue
+            if best is None or match > best[0]:
                 best = (match, slug)
+            position = self._alias_position(text, semantic_text, category.aliases)
+            if position is not None:
+                matched.append((position, slug))
+
+        if len({slug for _, slug in matched}) > 1:
+            return self._head_category(matched, language)
         return None if best is None else best[1]
+
+    @staticmethod
+    def _head_category(matched: list[tuple[int, str]], language: str) -> str:
+        matched.sort()
+        return matched[0][1] if language == "ar" else matched[-1][1]
+
+    def _alias_position(
+        self, text: str, semantic_text: str, aliases: tuple[Alias, ...]
+    ) -> int | None:
+        earliest: int | None = None
+        for alias in aliases:
+            found = alias.pattern.search(text)
+            if found is None:
+                continue
+            if not alias.strong and not self._weak_alias_applies(alias, semantic_text):
+                continue
+            if earliest is None or found.start() < earliest:
+                earliest = found.start()
+        return earliest
 
     def _parse_origin(self, text: str, semantic_text: str) -> str | None:
         best: tuple[int, str] | None = None
