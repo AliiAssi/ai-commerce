@@ -125,7 +125,7 @@ class Settings(DatabaseSettings):
 
     MCP_ALLOWED_HOSTS: str = ""
     MCP_ALLOWED_ORIGINS: str = ""
-    RENDER_EXTERNAL_HOSTNAME: str = ""
+    PUBLIC_HOSTNAME: str = ""
 
     @model_validator(mode="after")
     def _check_smart_search(self) -> Settings:
@@ -183,15 +183,15 @@ class Settings(DatabaseSettings):
     @property
     def mcp_allowed_hosts(self) -> list[str]:
         hosts = _split_csv(self.MCP_ALLOWED_HOSTS)
-        if self.RENDER_EXTERNAL_HOSTNAME:
-            hosts.append(self.RENDER_EXTERNAL_HOSTNAME)
+        if self.PUBLIC_HOSTNAME:
+            hosts.append(self.PUBLIC_HOSTNAME)
         return hosts
 
     @property
     def mcp_allowed_origins(self) -> list[str]:
         origins = _split_csv(self.MCP_ALLOWED_ORIGINS)
-        if self.RENDER_EXTERNAL_HOSTNAME:
-            origins.append(f"https://{self.RENDER_EXTERNAL_HOSTNAME}")
+        if self.PUBLIC_HOSTNAME:
+            origins.append(f"https://{self.PUBLIC_HOSTNAME}")
         return origins
 
 

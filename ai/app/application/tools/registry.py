@@ -78,8 +78,11 @@ class ToolRegistry:
         started = time.perf_counter()
         ok = False
         try:
-            async with self._scope_factory() as scope:
-                result = await entry.fn(params, scope)
+            if entry.spec.opens_own_scope:
+                result = await entry.fn(params, self._scope_factory)
+            else:
+                async with self._scope_factory() as scope:
+                    result = await entry.fn(params, scope)
             ok = True
             return result
         except AppError:

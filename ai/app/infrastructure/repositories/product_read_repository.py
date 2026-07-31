@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from decimal import Decimal
 from typing import Any
 
@@ -89,6 +90,15 @@ class ProductReadRepository(IProductReadRepository):
             page=params.page,
             page_size=params.page_size,
         )
+
+    async def by_ids(self, product_ids: Sequence[int]) -> list[ProductReadDTO]:
+        if not product_ids:
+            return []
+        stmt = _base_select().where(
+            products.c.id.in_(list(product_ids)), products.c.is_archived.is_(False)
+        )
+        rows = {row["id"]: row for row in (await self._session.execute(stmt)).mappings()}
+        return [_product(rows[pid]) for pid in product_ids if pid in rows]
 
     async def get(self, product_id: int) -> ProductReadDTO | None:
         stmt = _base_select().where(products.c.id == product_id, products.c.is_archived.is_(False))

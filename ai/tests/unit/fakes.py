@@ -109,6 +109,10 @@ class FakeProductReadRepository(IProductReadRepository):
             page_size=params.page_size,
         )
 
+    async def by_ids(self, product_ids) -> list[ProductReadDTO]:
+        found = {p.id: p for p in self._products}
+        return [found[pid] for pid in product_ids if pid in found]
+
     async def get(self, product_id: int) -> ProductReadDTO | None:
         return next((p for p in self._products if p.id == product_id), None)
 
