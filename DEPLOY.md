@@ -84,6 +84,24 @@ backfill had already been paid for.
 | `API_BASE_URL` | public URL of the web service |
 | `AI_ENABLED` | `true` to show the chat widget |
 
+## 2b. Stop any older deployment first
+
+If a previous version of the ai service is still running against the same database, **shut it down
+before backfilling**. Its index worker sweeps the same job table, claims the jobs, marks them done,
+and — if it predates the vector columns — writes no embeddings at all. A backfill run in parallel
+with it loses the race and silently under-fills the index.
+
+The symptom is exact: enqueue 46 jobs, and seconds later the table is empty while the vector count
+has not moved.
+
+```sql
+-- 46, then 0 within seconds, with no local worker running = something else is consuming them
+SELECT count(*) FROM ai_search_index_jobs;
+```
+
+You do not need to coordinate this carefully. Deploy the new code first; its worker fills the index
+on its own within a sweep interval, and step 3 becomes unnecessary.
+
 ## 3. Seed and build the index
 
 ```bash
