@@ -45,6 +45,7 @@ class ResilientReranker(IReranker):
         fallback = [candidate.product_id for candidate in candidates]
 
         if self._breaker.is_open:
+            logger.info("rerank refused: circuit open for %s (no provider call made)", self.version)
             return RerankResult(fallback, outcome=RERANK_UNAVAILABLE, version=self.version)
 
         try:
@@ -68,6 +69,7 @@ class ResilientReranker(IReranker):
             return RerankResult(fallback, outcome=RERANK_UNAVAILABLE, version=self.version)
 
         self._breaker.record_success()
+        logger.debug("rerank ok via %s outcome=%s", self.version, result.outcome)
         if len(result.product_ids) != len(fallback):
             logger.warning(
                 "reranker %s returned %d of %d candidates; keeping the fused order",
