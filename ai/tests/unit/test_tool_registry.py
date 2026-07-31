@@ -20,7 +20,6 @@ async def test_search_products_happy_path() -> None:
 
     assert result["total"] == 1
     assert result["items"][0]["name"] == "Alpha Tent"
-    # Decimal serialized as an exact string, never a float
     assert result["items"][0]["price"] == "100.00"
 
 
@@ -44,7 +43,6 @@ async def test_chat_scope_overrides_model_supplied_email() -> None:
     orders.seed("someone@test.com")
     registry = build_fake_registry(orders=orders)
 
-    # the model tries to peek at another customer by passing their email — it is ignored
     result = await registry.execute(
         "get_order", {"order_id": mine.id, "user_email": "someone@test.com"}, CHAT
     )

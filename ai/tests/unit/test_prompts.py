@@ -35,7 +35,6 @@ def test_unknown_key_and_missing_placeholder_raise() -> None:
     assert library.render("greet", name="sam") == "hello sam"
 
 
-# raw template text for a dotted key, straight from the shipped yaml
 def _raw(key: str) -> str:
     node = yaml.safe_load(PROMPTS_PATH.read_text(encoding="utf-8"))
     for part in key.split("."):

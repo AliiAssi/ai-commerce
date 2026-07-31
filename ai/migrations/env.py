@@ -19,23 +19,17 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 target_metadata = Base.metadata
-# Deliberately not the full Settings: a migration needs a database and nothing else,
-# and requiring the application's secrets here is what broke CI on its first ever run.
 settings = get_migration_settings()
 
-# this service's Alembic only ever manages ai_* tables; web owns the store schema in the
-# same database. A separate version table keeps the two migration histories from colliding.
 VERSION_TABLE = "ai_alembic_version"
 
 
-# never autogenerate or touch web-owned tables
 def include_object(obj, name, type_, reflected, compare_to) -> bool:
     if type_ == "table":
         return name.startswith("ai_")
     return True
 
 
-# emit sql to stdout without a live connection
 def run_migrations_offline() -> None:
     context.configure(
         url=settings.sqlalchemy_database_url,
@@ -50,7 +44,6 @@ def run_migrations_offline() -> None:
         context.run_migrations()
 
 
-# run the migration statements on an established connection
 def do_run_migrations(connection: Connection) -> None:
     context.configure(
         connection=connection,
@@ -63,7 +56,6 @@ def do_run_migrations(connection: Connection) -> None:
         context.run_migrations()
 
 
-# connect with the async driver and hand off to the sync runner
 async def run_migrations_online() -> None:
     engine = create_async_engine(
         settings.sqlalchemy_database_url,

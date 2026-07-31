@@ -17,7 +17,7 @@ router = APIRouter()
 _SSE_HEADERS = {
     "Cache-Control": "no-cache",
     "Connection": "keep-alive",
-    "X-Accel-Buffering": "no",  # disable proxy buffering so tokens flush live
+    "X-Accel-Buffering": "no",
 }
 
 

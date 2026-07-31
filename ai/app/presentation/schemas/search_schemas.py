@@ -14,23 +14,10 @@ from app.application.dtos.search_dto import (
 )
 from app.application.search.normalizer import Language
 
-# The internal search contract. Not a browser-facing surface: the web service is the only
-# caller, and it authenticates with INTERNAL_API_KEY like the chat endpoint does.
-
 
 class SearchRequest(BaseModel):
-    # An unknown field is a rejected request, not an ignored one. Found by probing the live
-    # endpoint: `catgory`, `maxprice` and a wrongly nested `explicit` object all returned 200
-    # with results that silently ignored the filter. That is the request-side of §12's rule
-    # about half-populated responses — a page that quietly dropped a constraint looks like an
-    # answer, and would read as a relevance bug rather than a contract one.
-    #
-    # Safe because this endpoint has exactly one caller: web's `_search_payload` sends these ten
-    # fields and nothing else, and the E2E suite exercises that path on every run.
     model_config = ConfigDict(extra="forbid")
 
-    # §5.1 caps the query at 200 characters; enforcing it here means the parser never sees a
-    # longer one regardless of who calls (§14.4's "limits enforced at the API edge").
     q: str = Field(default="", max_length=200)
 
     category: str | None = Field(default=None, max_length=100)
@@ -55,7 +42,6 @@ class SearchRequest(BaseModel):
                 in_stock_only=self.in_stock_only,
                 sort=self.sort,
             ),
-            # Unknown names are dropped downstream without error, per §9.1.
             ignore_inferred=tuple(self.ignore_inferred),
             page=self.page,
             page_size=self.page_size,
@@ -63,8 +49,6 @@ class SearchRequest(BaseModel):
 
 
 class SearchResponse(BaseModel):
-    """Ordered ids plus §9.2's metadata. Carries no scores — §7.4 keeps those internal."""
-
     product_ids: list[int]
     total: int
     page: int

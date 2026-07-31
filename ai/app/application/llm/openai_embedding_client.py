@@ -18,19 +18,6 @@ _MAX_INDEXABLE_DIMENSIONS = 2000
 
 
 class OpenAICompatibleEmbeddingClient(IEmbeddingClient):
-    """Any host serving OpenAI's `/v1/embeddings` — OpenRouter, OpenAI itself, and most gateways.
-
-    The second adapter §18.1 requires, and deliberately against a different wire format rather
-    than a second model on the same one: one flat `input` array, one `dimensions` integer, and
-    results that must be re-sorted by their `index` field. Proving `IEmbeddingClient` survives
-    both shapes is the whole reason the interface exists.
-
-    **It has no notion of a task type.** A query and a document embed identically here, so the
-    asymmetric query/document instruction format §18 asks for simply is not available. That is a
-    real quality difference from the Gemini adapter and not an implementation shortcut; it is
-    recorded here so a bake-off result is read with it in mind.
-    """
-
     def __init__(self, settings: Settings, client: httpx.AsyncClient | None = None) -> None:
         self._model = settings.EMBEDDING_MODEL
         self._dimensions = settings.EMBEDDING_DIMENSIONS
@@ -79,8 +66,6 @@ class OpenAICompatibleEmbeddingClient(IEmbeddingClient):
             ) from exc
 
         try:
-            # The spec allows results out of order, so `index` is authoritative and position is
-            # not. Trusting position would silently pair vectors with the wrong products.
             rows = sorted(payload["data"], key=lambda row: row["index"])
             vectors = tuple(tuple(float(v) for v in row["embedding"]) for row in rows)
         except (KeyError, TypeError, ValueError) as exc:

@@ -12,61 +12,41 @@ from app.application.dtos.index_dto import (
 
 
 class IIndexService(ABC):
-    """The indexing pipeline, in units of work that hold no transaction between them.
-
-    Both callers drive the same methods: the background worker in this service's lifespan, and
-    the `reindex_catalog` CLI. §11 requires the claim protocol to support an out-of-process
-    worker without redesign, and having one implementation with two drivers is what proves it.
-    """
+    @abstractmethod
+    async def sweep(self) -> SweepReportDTO: ...
 
     @abstractmethod
-    async def sweep(self) -> SweepReportDTO:
-        """Prune, enqueue hash drift, and refresh the coverage gate (§0.4)."""
+    async def run_batch(self) -> IndexRunReportDTO: ...
 
     @abstractmethod
-    async def run_batch(self) -> IndexRunReportDTO:
-        """Claim, build, and store one batch. Returns an empty report when nothing is due."""
+    async def drain(self, *, max_batches: int) -> IndexRunReportDTO: ...
 
     @abstractmethod
-    async def drain(self, *, max_batches: int) -> IndexRunReportDTO:
-        """Run batches until nothing more can be claimed."""
+    async def refresh_coverage(self) -> IndexCoverageDTO: ...
 
     @abstractmethod
-    async def refresh_coverage(self) -> IndexCoverageDTO:
-        """Re-measure coverage and settle whether retrieval may read the document table."""
+    async def enqueue(self, product_ids: Sequence[int], *, reset: bool) -> int: ...
 
     @abstractmethod
-    async def enqueue(self, product_ids: Sequence[int], *, reset: bool) -> int:
-        """Enqueue specific products; `reset` forces a retry of an exhausted job."""
+    async def enqueue_all_active(self, *, reset: bool) -> int: ...
 
     @abstractmethod
-    async def enqueue_all_active(self, *, reset: bool) -> int:
-        """Enqueue every non-archived product, for a full rebuild."""
+    async def drifted_product_ids(self) -> list[int]: ...
 
     @abstractmethod
-    async def drifted_product_ids(self) -> list[int]:
-        """What a sweep would enqueue, without enqueuing it (`--dry-run`)."""
+    async def active_product_ids(self) -> list[int]: ...
 
     @abstractmethod
-    async def active_product_ids(self) -> list[int]:
-        """Every non-archived product, for reporting what `--all` would touch."""
+    async def failed_jobs(self) -> list[FailedJobDTO]: ...
 
     @abstractmethod
-    async def failed_jobs(self) -> list[FailedJobDTO]:
-        """Jobs that exhausted their attempts."""
+    async def pending_count(self) -> int: ...
 
     @abstractmethod
-    async def pending_count(self) -> int:
-        """Jobs still queued, however they got there."""
+    async def release_leases(self) -> int: ...
 
     @abstractmethod
-    async def release_leases(self) -> int:
-        """Release this instance's leases on shutdown (§11 rule 7)."""
+    async def prune_query_cache(self) -> int: ...
 
     @abstractmethod
-    async def prune_query_cache(self) -> int:
-        """Delete expired query-embedding cache rows, no more often than its own interval."""
-
-    @abstractmethod
-    def backoff_seconds(self, attempts: int) -> float:
-        """Capped exponential backoff for a job that has already failed `attempts` times."""
+    def backoff_seconds(self, attempts: int) -> float: ...

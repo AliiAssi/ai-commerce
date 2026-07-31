@@ -7,8 +7,6 @@ import pytest
 
 from app.core.search_aliases import AliasError, load_aliases
 
-# The catalog as seeded. Kept here rather than read from the database so the unit suite stays
-# offline; the integration suite checks the same thing against live data.
 CATALOG_SLUGS = [
     "olive-oil",
     "pantry",
@@ -77,7 +75,6 @@ class TestShippedLexicon:
         assert aliases.origins_for("tripoli") == ("Tripoli", "Tripoli, North Lebanon")
 
     def test_a_region_resolves_to_its_descendants(self, aliases):
-        # Chouf owns an origin *and* has a child, so it exercises both halves of the walk.
         assert aliases.origins_for("chouf") == ("Chouf", "Deir el Qamar")
 
     def test_labels_are_human_readable(self, aliases):
@@ -87,8 +84,6 @@ class TestShippedLexicon:
 
 class TestCatalogValidation:
     def test_a_renamed_category_fails_loudly(self, aliases):
-        # The whole point of the startup check: this would otherwise read as a slow relevance
-        # regression rather than a bug.
         with pytest.raises(AliasError, match="missing from the lexicon"):
             aliases.validate_against_catalog(
                 category_slugs=[*CATALOG_SLUGS[:-1], "glass-and-copper"],

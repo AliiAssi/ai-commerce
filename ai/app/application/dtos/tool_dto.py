@@ -8,8 +8,8 @@ from pydantic import BaseModel
 
 @dataclass(frozen=True)
 class ToolSpec:
-    name: str  # snake_case verb an LLM would guess, e.g. "search_products"
-    description: str  # LLM-facing prose, part of the prompt
+    name: str
+    description: str
     params_model: type[BaseModel]
     customer_scoped: bool = False
 
@@ -20,5 +20,4 @@ class ToolContext:
     user_email: str | None = None
 
 
-class EmptyParams(BaseModel):
-    """No arguments."""
+class EmptyParams(BaseModel): ...

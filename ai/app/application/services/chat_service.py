@@ -27,19 +27,14 @@ from app.infrastructure.irepositories.ichat_repository import IChatRepository
 logger = logging.getLogger(__name__)
 
 
-# Raised internally when a session has hit its message cap.
 class _SessionFull(Exception):
     pass
 
 
-# Case/whitespace-insensitive email match; None means guest.
 def _same_identity(a: str | None, b: str | None) -> bool:
     return (a.strip().lower() if a else None) == (b.strip().lower() if b else None)
 
 
-# The agent loop: system prompt + history + user turn, then the LLM streams tokens and may
-# call tools until it answers (capped by MAX_TOOL_ITERATIONS). Singleton — opens its own short
-# DB scopes for chat history instead of holding one across an LLM turn.
 class ChatService(IChatService):
     def __init__(
         self,
@@ -159,7 +154,6 @@ class ChatService(IChatService):
         messages.append(LLMMessageDTO(role="user", content=message))
         return messages
 
-    # A failed tool's error is fed back to the LLM as its result so it can recover.
     async def _execute_tool(self, call: LLMToolCallDTO, context: ToolContext) -> str:
         try:
             result = await self._registry.execute(call.name, call.arguments, context)

@@ -14,7 +14,6 @@ class EventBus:
     def subscribe(self, event_type: type, handler: Callable[[Any], None]) -> None:
         self._handlers.setdefault(event_type, []).append(handler)
 
-    # Runs handlers synchronously; a failing handler is logged, never lets the use case fail.
     def publish(self, event: Any) -> None:
         for handler in self._handlers.get(type(event), []):
             try:

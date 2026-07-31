@@ -12,14 +12,12 @@ pytestmark = pytest.mark.skipif(
 )
 
 
-# parse SSE "data: {...}" frames into event dicts
 def _events(text: str) -> list[dict]:
     return [
         json.loads(line[len("data: ") :]) for line in text.splitlines() if line.startswith("data: ")
     ]
 
 
-# swap in a scripted LLM for the whole app, then restore the real wiring
 @pytest.fixture
 def scripted_llm(app):
     from app.application.llm.illm_client import ILLMClient
@@ -31,7 +29,6 @@ def scripted_llm(app):
         from tests.unit.fakes import FakeLLMClient
 
         container.bind_instance(ILLMClient, FakeLLMClient(script))
-        # ChatService is a singleton holding the old client; drop it so it rebuilds
         container._singletons.clear()
 
     yield _install
@@ -73,8 +70,6 @@ async def test_history_persists_across_two_turns(client, catalog, scripted_llm) 
     session_id = first.headers["X-Session-Id"]
 
     scripted_llm([answer_turn("second answer")])
-    # the web proxy re-sends the authenticated email on every turn; the same customer
-    # reusing their own session id keeps the same session (ownership check passes)
     second = await client.post(
         "/chat",
         json={"message": "again", "session_id": session_id, "user_email": "shopper@test.com"},
@@ -92,7 +87,7 @@ async def test_history_persists_across_two_turns(client, catalog, scripted_llm) 
             text("SELECT count(*) FROM ai_chat_messages WHERE session_id = :sid"),
             {"sid": session_id},
         )
-    assert count == 4  # two user + two assistant messages
+    assert count == 4
 
 
 async def test_chat_requires_internal_key(client) -> None:

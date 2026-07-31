@@ -30,7 +30,6 @@ class Scope:
             return cached
         return self._container.resolve(interface, scope=self)
 
-    # Instances cached here live only as long as this request's scope does.
     def cache(self, interface: type, instance: Any) -> None:
         self._cache[interface] = instance
 
@@ -53,7 +52,6 @@ class Container:
     def bind_instance(self, interface: type, instance: Any) -> None:
         self._instances[interface] = instance
 
-    # Used between tests so bindings from one test don't leak into the next.
     def reset(self) -> None:
         self._bindings.clear()
         self._instances.clear()
@@ -112,7 +110,6 @@ class Container:
                 ) from None
         return implementation(**kwargs)
 
-    # AsyncSession must come from the request scope; singletons can't depend on it directly.
     def _resolve_dependency(self, annotation: type, scope: Scope | None) -> Any:
         if scope is not None:
             cached = scope.get_cached(annotation)
@@ -129,10 +126,6 @@ class Container:
 container = Container()
 
 
-# For work outside a FastAPI request: MCP calls bypass Depends entirely, and the chat SSE
-# generator can't use the request scope either since FastAPI closes yield-dependencies before
-# a StreamingResponse body runs. Each tool call opens its own scope, so nothing stays pinned
-# across a slow LLM turn.
 @asynccontextmanager
 async def open_scope() -> AsyncIterator[Scope]:
     if container.session_factory is None:
@@ -141,8 +134,6 @@ async def open_scope() -> AsyncIterator[Scope]:
         yield Scope(container, session)
 
 
-# Anything that has to work outside a request takes one of these rather than a session, so it
-# opens and closes its own short transactions instead of inheriting one it cannot control.
 ScopeFactory = Callable[[], AbstractAsyncContextManager[Scope]]
 
 

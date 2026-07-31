@@ -1,43 +1,6 @@
-# BEIT relevance corpus — the target every ranking change is measured against.
-#
-# §15.1–15.3 of SMART_SEARCH.md, transcribed into something executable, plus generated cases
-# extending toward §15's release bar of 50 judged English and 50 judged Arabic/mixed queries.
-#
-# Two rules govern this file:
-#
-#   1. It is written BEFORE a model sees it (§18.1 step 2). Scoring a model against a corpus that
-#      was adjusted to suit it measures nothing. If a case here turns out to be wrong, fix it and
-#      say so in SMART_SEARCH_PLAN.md — never quietly to make a run go green.
-#   2. `source` is load-bearing. `spec` cases are the owner's own acceptance criteria and gate
-#      releases today. `draft` cases were generated to widen coverage and are NOT gates until
-#      reviewed — the scorer reports them separately and never fails a gate on them.
-#
-# Products are referenced by name, not id. Ids are serial and change with every reseed; the names
-# are the catalog's stable identity and are also what makes a failing case readable.
-
 version: 1
 
-# Which fields a case may carry:
-#
-#   query            what the shopper typed
-#   language         en | ar | mixed — gates are computed independently per language (§18.1 step 4)
-#   source           spec | draft
-#   section          the §15 subsection a spec case comes from
-#   explicit         filters set through the URL/sidebar, e.g. {category_slug: ceramics}
-#   sort             an explicitly selected sort
-#   expect_filters   the effective filters retrieval must apply
-#   expect_inferred  what must be REPORTED as inferred, even when an explicit filter overrode it
-#   first            the product that must rank first
-#   exact_name       true when this is the §15 exact-product-name rule
-#   required         products that must appear within top_k
-#   excluded         products that must not appear at all
-#   top_k            window for `required` (default 5)
-#   allow_empty      an empty result is correct rather than a miss
-#   expect_error     the query is invalid and must be rejected, not answered (§9.3)
-#   note             why this case exists, when that is not obvious
-
 cases:
-  # ---- §15.1 English ------------------------------------------------------------------------
 
   - id: en-frying-oil-under-25
     query: olive oil for frying under $25
@@ -141,8 +104,6 @@ cases:
     exact_name: true
     first: Baladi Extra Virgin Olive Oil
 
-  # ---- §15.2 Arabic -------------------------------------------------------------------------
-
   - id: ar-frying-oil-under-25
     query: زيت زيتون للطبخ والقلي تحت ٢٥ دولار
     language: ar
@@ -214,8 +175,6 @@ cases:
     section: "15.2"
     first: Sarafand Hand-Blown Tumblers, set of four
 
-  # ---- §15.3 Mixed and filter precedence ----------------------------------------------------
-
   - id: mixed-coffee-beirut-under-20
     query: coffee من Beirut under 20
     language: mixed
@@ -235,8 +194,6 @@ cases:
     section: "15.3"
     explicit: {category_slug: ceramics}
     expect_filters: {category_slug: ceramics, max_price: "20"}
-    # `expect_inferred` asserts the shopper-facing chip, which carries the display label rather
-    # than the slug — that is what §5.2.1 renders and what the shopper reads.
     expect_inferred: {category: Soap & Skincare}
     excluded: [Tripoli Olive Oil Soap]
     note: >-
@@ -265,13 +222,6 @@ cases:
     note: >-
       Arabic retrieval determines membership; price determines ordering (§7.5). The Tripoli soap
       is $9 and the laurel soap $14, so price_asc fixes the first result deterministically.
-
-  # ---- Generated: hard negatives and ambiguity ----------------------------------------------
-  #
-  # §15 requires the release evaluation set to include "ambiguous and hard-negative candidates".
-  # Everything below is DRAFT and is not a gate until reviewed. The English cases are derived
-  # from catalog facts and should be quick to confirm or reject. The Arabic cases need a native
-  # reading — they are the half SMART_SEARCH_PLAN.md flags as needing the owner specifically.
 
   - id: en-copper-not-sold-out-first
     query: copper
@@ -391,13 +341,6 @@ cases:
       DRAFT. Filters-only: nothing is left after the price phrase, so §7.2 skips retrieval and
       this must be a filtered browse rather than a text search that found nothing.
 
-  # ---- Generated English, batch 2 — §15's expansion toward 50 judged queries -----------------
-  #
-  # All DRAFT. Grounded in catalog facts (prices, stock, origins, category names) so most should
-  # be quick to confirm or reject. Grouped by what each one is actually testing, because a corpus
-  # you cannot navigate does not get reviewed.
-
-  # price bounds — the constraint most likely to be silently dropped
   - id: en-under-ten
     query: anything under $10
     language: en
@@ -427,7 +370,6 @@ cases:
     expect_filters: {sort: price_desc}
     first: Copper Serving Tray
 
-  # availability
   - id: en-in-stock-sumac
     query: sumac in stock
     language: en
@@ -445,7 +387,6 @@ cases:
     top_k: 3
     note: Stock 3 — low but not zero, so it must survive the availability filter.
 
-  # origin
   - id: en-from-baalbek
     query: from Baalbek
     language: en
@@ -479,7 +420,6 @@ cases:
     required: [Coloured Glass Vase, Recycled Glass Pitcher]
     top_k: 4
 
-  # category words that are not product words
   - id: en-mouneh
     query: mouneh
     language: en
@@ -504,7 +444,6 @@ cases:
     required: [Cedar Keepsake Box, Olive Wood Chopping Board]
     top_k: 5
 
-  # intent without vocabulary overlap — what embeddings are for
   - id: en-something-to-serve-guests
     query: something to serve guests coffee in
     language: en
@@ -542,7 +481,6 @@ cases:
     required: [Beeswax and Olive Candle]
     top_k: 6
 
-  # hard negatives
   - id: en-glass-not-glaze
     query: drinking glasses
     language: en
@@ -578,9 +516,6 @@ cases:
     query: espresso machine
     language: en
     source: spec
-    # §15's quality-gate list rather than one of its query tables: "no-result guard: unrelated
-    # nearest neighbors do not pass the relevance floor". The tables enumerate queries; this
-    # gate is stated once and applies to all of them.
     section: "15"
     excluded: [Copper Coffee Set, Lebanese Coffee with Cardamom, Dark Roast Coffee Beans]
     note: >-
@@ -599,7 +534,6 @@ cases:
     source: draft
     allow_empty: true
 
-  # transliteration, beyond the three already covered
   - id: en-transliteration-makdous
     query: makdus
     language: en
@@ -628,7 +562,6 @@ cases:
     required: [Kilim Cushion Cover]
     top_k: 3
 
-  # exact names, which §15 gates at 100%
   - id: en-exact-name-tumblers
     query: Sarafand Hand-Blown Tumblers, set of four
     language: en
@@ -651,21 +584,6 @@ cases:
     first: Cedar Keepsake Box
     note: The exact-name rule normalizes case; §7.4 makes no exception for how it was typed.
 
-  # ---- Generated Arabic and mixed, batch 2 ---------------------------------------------------
-  #
-  # ALL DRAFT, and this is the half SMART_SEARCH_PLAN.md flags as needing the owner specifically.
-  # Every case below was generated, not judged. Two things to check when reviewing:
-  #
-  #   1. Is the Arabic a natural way for a Lebanese shopper to ask for this? Not merely
-  #      grammatical — natural. A stilted query tests a shopper who does not exist.
-  #   2. Is the expected product the right answer, or merely *an* answer? Where a second product
-  #      would satisfy the query equally well, the case should require both or neither.
-  #
-  # Cases marked `# MODEL AGREES` were checked against gemini-embedding-001 and it ranked the
-  # expected product first. That is evidence the query expresses the intent, not proof the
-  # phrasing is idiomatic — only a native reading settles that.
-
-  # deterministic filters, which work today and do not depend on a model
   - id: ar-price-under-twenty
     query: أقل من عشرين دولار
     language: ar
@@ -707,7 +625,6 @@ cases:
     expect_filters: {sort: price_asc}
     note: A sort phrase in Arabic. Confirm this is how it would actually be said.
 
-  # product intent — these need the semantic leg
   - id: ar-olive-oil-soap-both
     query: صابون زيت الزيتون
     language: ar
@@ -724,14 +641,12 @@ cases:
     source: draft
     required: [Stone-Ground Tahini]
     top_k: 3
-    # MODEL AGREES
 
   - id: ar-pomegranate-molasses
     query: دبس الرمان
     language: ar
     source: draft
     first: Pomegranate Molasses
-    # MODEL AGREES
 
   - id: ar-zaatar
     query: زعتر
@@ -824,7 +739,6 @@ cases:
     required: [Roasted Pistachios]
     top_k: 3
 
-  # household
   - id: ar-clay-jar
     query: جرة فخار للماء
     language: ar
@@ -896,7 +810,6 @@ cases:
     required: [Cedar Keepsake Box]
     top_k: 4
 
-  # intent without vocabulary overlap
   - id: ar-gift-for-a-new-home
     query: هدية لبيت جديد
     language: ar
@@ -913,12 +826,11 @@ cases:
     top_k: 8
     note: Colloquial "شي" rather than "شيء". Confirm the normalizer should accept both.
 
-  # hard negative
   - id: ar-not-in-catalog
     query: ماكينة قهوة كهربائية
     language: ar
     source: spec
-    section: "15"  # the no-result guard, as above
+    section: "15"
     excluded: [Copper Coffee Set, Hammered Copper Rakwe]
     note: >-
       There are no appliances. Returning the copper set because it is coffee-shaped is the
@@ -929,7 +841,6 @@ cases:
       catalog, so an Arabic query's candidates come from the semantic leg alone and there is no
       second opinion to keep an unrelated neighbour out.
 
-  # mixed language, which §15.3 covers with only one case today
   - id: mixed-soap-min-price
     query: soap من طرابلس over $10
     language: mixed

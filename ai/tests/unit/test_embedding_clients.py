@@ -48,8 +48,6 @@ def openai_reply(vectors, *, order=None):
 
 class TestGemini:
     async def test_documents_and_queries_use_different_task_types(self):
-        # §18 requires the query/document instruction format to be applied identically at index
-        # time and query time. Getting it wrong costs recall silently — nothing else notices.
         seen = []
 
         def handler(request: httpx.Request) -> httpx.Response:
@@ -66,8 +64,6 @@ class TestGemini:
         assert seen == ["RETRIEVAL_DOCUMENT", "RETRIEVAL_QUERY"]
 
     async def test_the_requested_width_is_sent(self):
-        # The API defaults to 3072 and pgvector will not index above 2000, so the width has to be
-        # asked for rather than accepted.
         seen = {}
 
         def handler(request: httpx.Request) -> httpx.Response:
@@ -81,12 +77,10 @@ class TestGemini:
         assert seen["outputDimensionality"] == 4
 
     async def test_a_width_pgvector_cannot_index_is_refused_at_construction(self):
-        # Better here than after a backfill has been paid for and stored.
         with pytest.raises(EmbeddingError, match="HNSW"):
             GeminiEmbeddingClient(settings(EMBEDDING_DIMENSIONS=3072))
 
     async def test_a_provider_error_does_not_leak_its_message(self):
-        # §14.4: nothing carrying a key or provider internals reaches a log or an operator.
         def handler(request: httpx.Request) -> httpx.Response:
             return httpx.Response(403, json={"error": {"message": "key sk-abc123 is invalid"}})
 
@@ -99,8 +93,6 @@ class TestGemini:
 
 class TestOpenAICompatible:
     async def test_results_are_reordered_by_index_not_by_position(self):
-        # The response may arrive out of order. Trusting position would pair vectors with the
-        # wrong products — a corruption nothing downstream could detect.
         def handler(request: httpx.Request) -> httpx.Response:
             return openai_reply([[9.0] * 4, [1.0] * 4], order=[1, 0])
 
@@ -126,11 +118,7 @@ class TestOpenAICompatible:
 
 
 class TestBatchValidation:
-    """§12 lists malformed dimensions as a fallback trigger, which only works if something looks."""
-
     async def test_a_short_batch_is_refused(self):
-        # Worse than a failure: the vectors would be stored against the wrong products and every
-        # later query would be quietly wrong with nothing to point at.
         def handler(request: httpx.Request) -> httpx.Response:
             return gemini_reply([[0.0] * 4])
 
@@ -172,8 +160,6 @@ class TestBatchValidation:
 
 
 class TestFailureCodes:
-    """§12 needs "wait and retry" told apart from "an operator must look at this"."""
-
     @pytest.mark.parametrize(
         ("status", "code", "retryable"),
         [
@@ -185,9 +171,6 @@ class TestFailureCodes:
         ],
     )
     async def test_a_status_becomes_a_code(self, status, code, retryable):
-        # A rate limit and a revoked key both used to surface as "HTTPStatusError", which tells
-        # the index worker nothing about whether backing off would help. 429 in particular must
-        # not burn one of §11's five attempts.
         def handler(request: httpx.Request) -> httpx.Response:
             return httpx.Response(status, json={"error": {"message": "key sk-abc123 leaked"}})
 
@@ -200,7 +183,6 @@ class TestFailureCodes:
         assert "sk-abc123" not in str(exc.value)
 
     async def test_a_malformed_body_is_not_retryable(self):
-        # Retrying a provider that answered successfully with the wrong shape just repeats it.
         def handler(request: httpx.Request) -> httpx.Response:
             return httpx.Response(200, json={"unexpected": True})
 

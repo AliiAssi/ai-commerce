@@ -4,17 +4,6 @@ import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql
 
-# smart search: search documents, the index job queue, and search analytics
-#
-# These tables reference the store catalog, which the web service owns and migrates. That
-# dependency is not introduced here — this service already reads products at runtime through
-# store_tables.py — but a foreign key makes it enforced instead of assumed, so the catalog has to
-# exist first. The upgrade checks and says so plainly rather than failing on a confusing
-# constraint error.
-#
-# The vector column and its index are NOT here. vector(n) bakes in a dimension count that cannot
-# be widened without re-embedding the catalog, so it waits until a model has been chosen by
-# measurement.
 revision = "0002"
 down_revision = "0001"
 branch_labels = None
@@ -29,7 +18,6 @@ def upgrade() -> None:
             "this service's: the search tables reference the store catalog."
         )
 
-    # Idempotent, and issued by both services: neither can assume it deployed first.
     op.execute("CREATE EXTENSION IF NOT EXISTS vector")
     op.execute("CREATE EXTENSION IF NOT EXISTS pg_trgm")
 
@@ -154,6 +142,3 @@ def downgrade() -> None:
     op.drop_index("ix_ai_search_documents_simple", table_name="ai_search_documents")
     op.drop_index("ix_ai_search_documents_en", table_name="ai_search_documents")
     op.drop_table("ai_search_documents")
-
-    # The extensions stay installed: the web service's trigram indexes depend on pg_trgm, and
-    # dropping either would reach outside this service's own schema.

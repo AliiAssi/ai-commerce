@@ -12,8 +12,6 @@ EMPTY_COVERAGE = IndexCoverageDTO(active_products=0, documents=0)
 
 
 class FakeIndexService:
-    """Counts what the loop asked for, so cadence can be asserted without a database."""
-
     def __init__(self, *, batches: list[int] | None = None, raises: int = 0) -> None:
         self.sweeps = 0
         self.batches = 0
@@ -44,8 +42,6 @@ class FakeIndexService:
 
 
 class Config:
-    """Only the settings the worker reads. Intervals are tiny so the tests do not sleep."""
-
     SEARCH_INDEX_SWEEP_SECONDS = 3600.0
     SEARCH_INDEX_POLL_SECONDS = 0.01
     SEARCH_INDEX_BATCH_SIZE = 4
@@ -63,8 +59,6 @@ async def _run_briefly(worker: IndexWorker, *, until) -> None:
 
 class TestCadence:
     async def test_the_first_iteration_sweeps(self):
-        # A process that boots against an empty index has to start filling it immediately, not
-        # after one sweep interval — the sweep interval is a staleness bound, not a start delay.
         service = FakeIndexService()
         worker = IndexWorker(service, Config())
 
@@ -73,8 +67,6 @@ class TestCadence:
         assert service.sweeps == 1
 
     async def test_a_full_batch_is_followed_immediately_by_another(self):
-        # A backlog must drain at database speed rather than one batch per poll interval,
-        # otherwise a reindex of 10,000 products would take hours of pure waiting.
         service = FakeIndexService(batches=[4, 4, 4])
         worker = IndexWorker(service, Config())
 
@@ -83,9 +75,6 @@ class TestCadence:
         assert service.batches >= 4
 
     async def test_a_drained_queue_settles_the_coverage_gate_without_waiting_for_a_sweep(self):
-        # Found on the first real run: the index reached 46/46 and search kept answering from
-        # §12's step 4 until the next sweep, because only the sweep refreshed the gate. With a
-        # 20s sweep that is 20s of a complete index going unused on every deploy.
         service = FakeIndexService(batches=[4, 4, 2])
         worker = IndexWorker(service, Config())
 
@@ -94,8 +83,6 @@ class TestCadence:
         assert service.refreshes >= 1
 
     async def test_an_idle_poll_does_not_re_measure_coverage(self):
-        # The refresh is for the drain transition, not the steady state: a worker with nothing
-        # to do must not put two counts on the database every poll interval forever.
         service = FakeIndexService()
         worker = IndexWorker(service, Config())
 
@@ -106,9 +93,6 @@ class TestCadence:
 
 class TestResilience:
     async def test_one_failing_iteration_does_not_end_the_worker(self):
-        # §12 requires index-worker failure not to take down the ordinary API, and this task
-        # shares a process with it. A loop that died on the first exception would also stop
-        # indexing silently, with the service still reporting healthy.
         service = FakeIndexService(raises=1)
         worker = IndexWorker(service, Config())
 
@@ -117,8 +101,6 @@ class TestResilience:
         assert service.batches >= 3
 
     async def test_stopping_releases_this_worker_leases(self):
-        # §11 rule 7. Without this a redeploy waits out SEARCH_INDEX_LEASE_SECONDS before it can
-        # touch the jobs the previous process was holding.
         service = FakeIndexService()
         worker = IndexWorker(service, Config())
 
@@ -127,8 +109,6 @@ class TestResilience:
         assert service.released == 1
 
     async def test_stopping_a_worker_that_never_started_is_safe(self):
-        # The lifespan calls stop() unconditionally in a finally, including on the path where
-        # SEARCH_INDEX_WORKER_ENABLED is false and start() was never called.
         service = FakeIndexService()
 
         await IndexWorker(service, Config()).stop()
@@ -136,9 +116,6 @@ class TestResilience:
         assert service.released == 0
 
     async def test_a_hung_iteration_is_cancelled_rather_than_blocking_shutdown(self):
-        # Render sends SIGTERM and then SIGKILL. Waiting forever for a batch that is stuck on a
-        # network read would turn a graceful shutdown into a hard kill, which is what leaves
-        # leases behind in the first place.
         class Hanging(FakeIndexService):
             async def run_batch(self) -> IndexRunReportDTO:
                 await asyncio.sleep(60)
@@ -170,8 +147,6 @@ class TestCoverageState:
         assert coverage.ready is ready
 
     def test_an_empty_catalog_is_not_ready(self):
-        # Zero of zero is arguably complete coverage, but "ready" defaults the whole store onto
-        # §12's step 3, and a stale value has to fail towards step 4 — which always answers.
         coverage = IndexCoverage()
 
         coverage.update(active_products=0, documents=0, threshold=0.95)
@@ -179,6 +154,4 @@ class TestCoverageState:
         assert coverage.ready is False
 
     def test_coverage_starts_not_ready(self):
-        # The opposite default to SearchCapabilities.trigram, deliberately: an unreachable
-        # database must not leave retrieval pointed at a table nothing has confirmed is filled.
         assert IndexCoverage().ready is False

@@ -55,7 +55,6 @@ products = Table(
     Column("review_count", Integer, nullable=False),
     Column("is_archived", Boolean, nullable=False),
     Column("created_at", DateTime(timezone=True), nullable=False),
-    # Generated column maintained by web; queried here via @@ websearch_to_tsquery.
     Column("search_vector", TSVECTOR),
 )
 

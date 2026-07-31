@@ -15,32 +15,16 @@ ALIASES_PATH = Path(__file__).with_name("search_aliases.yaml")
 
 SORT_KEYS = ("price_asc", "price_desc", "rating", "newest")
 
-# An alias is matched with word boundaries on both sides, plus two Arabic-specific allowances:
-#
-#  - a leading clitic cluster, because Arabic attaches prepositions and the article directly to
-#    the word. "بطرابلس" is "in Tripoli" and must still find the alias "طرابلس"; "بأقل من" is
-#    "at less than" and must find "أقل من".
-#  - an optional trailing ha, which after folding is also ta marbuta. That makes "متوفرة" match
-#    the alias "متوفر" without a second entry.
-#
-# Deliberately narrow. A general Arabic stemmer here would let "زيت" (oil) match "زيتون"
-# (olives), which is the kind of quiet over-matching a filter must never do.
-_AR_CLITICS = "وفبكل"  # waw fa ba kaf lam
+_AR_CLITICS = "وفبكل"
 _AR_PREFIX = f"(?:[{_AR_CLITICS}]{{0,2}}(?:ال)?)?"
-_AR_SUFFIX = "ه?"  # ha; ta marbuta folds to this
+_AR_SUFFIX = "ه?"
 _ARABIC_CHAR = re.compile("[؀-ۿ]")
 
-# The number grammar, shared by the range templates below and by the parser's comparator
-# matcher so the two can never drift. A USD marker on either side is absorbed into the match:
-# the store is USD-only, so "$25", "25 usd" and "٢٥ دولار" are the same constraint, and leaving
-# the word behind would strand "dollars" in the semantic text. Foreign currencies are handled
-# earlier and separately — finding one suppresses the inference rather than consuming it.
 _USD = r"(?:\$|usd|dollars?|دولارا?)"
 NUMBER_PATTERN = rf"{_USD}?\s*(\d{{1,7}}(?:\.\d{{1,2}})?)\s*{_USD}?"
 
 
-class AliasError(Exception):
-    """The lexicon is unusable, or no longer describes the live catalog."""
+class AliasError(Exception): ...
 
 
 def _is_arabic(text: str) -> bool:
@@ -48,7 +32,6 @@ def _is_arabic(text: str) -> bool:
 
 
 def _alias_pattern(alias: str) -> str:
-    """A regex for one alias phrase, tolerant of Arabic clitics and of extra whitespace."""
     words = [re.escape(word) for word in alias.split()]
     body = r"\s+".join(words)
     if _is_arabic(alias):
@@ -58,7 +41,7 @@ def _alias_pattern(alias: str) -> str:
 
 @dataclass(frozen=True, slots=True)
 class Alias:
-    phrase: str  # folded, lowercase — what the pattern was built from
+    phrase: str
     pattern: re.Pattern[str]
     strong: bool
 
@@ -84,11 +67,9 @@ class Category:
 class Place:
     key: str
     label: str
-    # Literal products.origin strings this place owns. Empty for a pure region.
     origins: tuple[str, ...]
     children: tuple[str, ...]
     aliases: tuple[Alias, ...]
-    # Filled in once the whole file is loaded: this place's origins plus every descendant's.
     resolved_origins: tuple[str, ...] = field(default=())
 
 
@@ -135,9 +116,6 @@ class AliasLibrary:
         category = self.categories.get(slug)
         return slug if category is None else category.label
 
-    # Startup guard. A category renamed in the admin, or a new origin appearing in the catalog,
-    # silently narrows or breaks every query that used to resolve it — this is the check that
-    # turns that into a loud failure instead of a slow relevance regression.
     def validate_against_catalog(
         self, *, category_slugs: Iterable[str], origins: Iterable[str]
     ) -> None:
@@ -169,7 +147,7 @@ class AliasLibrary:
 def _resolve_origins(places: dict[str, Place]) -> None:
     def walk(key: str, seen: set[str]) -> Iterator[str]:
         if key in seen:
-            return  # a cycle in the hierarchy is a lexicon bug, not a reason to hang
+            return
         seen.add(key)
         place = places.get(key)
         if place is None:
@@ -179,7 +157,6 @@ def _resolve_origins(places: dict[str, Place]) -> None:
             yield from walk(child, seen)
 
     for key, place in places.items():
-        # dict.fromkeys keeps declaration order, which keeps the generated SQL stable.
         place.resolved_origins = tuple(dict.fromkeys(walk(key, set())))
 
 
@@ -207,11 +184,7 @@ def _load_places(raw: dict[str, Any]) -> dict[str, Place]:
 def _load_price(raw: dict[str, Any]) -> PriceLexicon:
     templates = []
     for template in raw.get("range") or []:
-        # Folded and case-folded like every other entry, or an Arabic template written in
-        # ordinary orthography ("إلى") could never match the folded query text ("الي").
         folded = fold_for_matching(str(template).casefold())
-        # Whitespace is optional so "و٢٥" — the Arabic conjunction fused to its number — still
-        # parses, and the bounds are captured in template order.
         pattern = re.escape(folded).replace(r"\ ", r"\s*")
         pattern = pattern.replace(re.escape("{a}"), NUMBER_PATTERN).replace(
             re.escape("{b}"), NUMBER_PATTERN
@@ -225,7 +198,6 @@ def _load_price(raw: dict[str, Any]) -> PriceLexicon:
         for token in currencies.get(group) or []
     ]
     symbols = [re.escape(str(symbol)) for symbol in currencies.get("symbols") or []]
-    # Symbols carry no word boundary of their own; words do.
     parts = [f"(?<!\\w)(?:{'|'.join(tokens)})(?!\\w)"] if tokens else []
     if symbols:
         parts.append(f"(?:{'|'.join(symbols)})")

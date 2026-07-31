@@ -66,7 +66,6 @@ class ToolRegistry:
             raise ToolExecutionError(f"unknown tool {name!r}")
 
         arguments = dict(arguments)
-        # Customer identity is injected on the chat edge, never model-chosen.
         if entry.spec.customer_scoped and context.source == "chat":
             arguments["user_email"] = context.user_email
 

@@ -30,17 +30,6 @@ logger = logging.getLogger(__name__)
 
 
 async def probe_search_capabilities() -> None:
-    """Find out at boot which optional database features retrieval can use.
-
-    `pg_trgm` is created by the *web* service's migrations, because the trigram indexes sit on
-    web's `products` table. So this service can be pointed at a database that simply does not
-    have it yet — and without this check the first shopper to type anything would get a 500
-    from `word_similarity` not existing.
-
-    Missing is not fatal. The lexical leg answers on its own; what is lost is the transliterated
-    spellings (`rakweh`, `zaatar`) that §7.2 added the trigram leg for. Saying so loudly at boot
-    is worth more than failing to start.
-    """
     try:
         async with open_scope() as scope:
             detected = await scope.resolve(ISearchRepository).detect_capabilities()
@@ -61,19 +50,6 @@ async def probe_search_capabilities() -> None:
 
 
 async def probe_index_coverage() -> None:
-    """Settle at boot whether retrieval may read this service's document table.
-
-    §12's ladder has two lexical rungs and the difference between them is index coverage, so
-    something has to measure it. Doing that per request would put two counts on the hot path
-    forever; doing it here and again after every sweep costs nothing and is never more stale
-    than the index itself.
-
-    It runs even when the worker is disabled, because the `reindex_catalog` CLI is a legitimate
-    way to maintain the index without an in-process worker — §11 requires the claim protocol to
-    support exactly that. An unreachable database leaves coverage at its default, which is *not
-    ready*: `products.search_vector` is a generated column and can never be empty, so falling
-    back to it is always safe, while reading an unfilled document table returns nothing at all.
-    """
     try:
         coverage = await container.resolve(IIndexService).refresh_coverage()
     except SQLAlchemyError as exc:
@@ -89,21 +65,6 @@ async def probe_index_coverage() -> None:
 
 
 async def verify_semantic_readiness(settings: Settings) -> None:
-    """Check at boot that `SMART_SEARCH_ENABLED` describes something that exists (§18).
-
-    The settings validator can only compare settings to each other. It cannot see whether the
-    vector column was ever migrated, or whether an embedding client is actually bound — and the
-    version of this check that only asked whether three settings were non-empty stopped guarding
-    anything the moment the bake-off filled all three in. The flag could then be switched on with
-    no column and no client, and §18's prohibition on shipping lexical-only search under the name
-    of semantic search would be one configuration mistake away.
-
-    Fatal only when the flag is on, like `verify_search_lexicon` and for the same reason: this
-    process also serves chat and MCP, and refusing to start over a feature nobody is reading yet
-    trades a real outage for a hypothetical one. A database that cannot be reached is a different
-    condition again and is never fatal — the ordinary API must keep serving (§12), and the next
-    boot checks again.
-    """
     if not settings.SMART_SEARCH_ENABLED:
         return
 
@@ -134,8 +95,6 @@ async def verify_semantic_readiness(settings: Settings) -> None:
             "Run this service's migrations against this database."
         )
     if column != EMBEDDING_VECTOR_DIMENSIONS:
-        # Reachable only by pointing at a database migrated at a different width — the settings
-        # validator already refuses a mismatched EMBEDDING_DIMENSIONS.
         raise RuntimeError(
             f"ai_search_documents.embedding is vector({column}) but this build expects "
             f"vector({EMBEDDING_VECTOR_DIMENSIONS}). Re-migrate and re-embed."
@@ -143,21 +102,6 @@ async def verify_semantic_readiness(settings: Settings) -> None:
 
 
 async def verify_search_lexicon(settings: Settings) -> None:
-    """Check at boot that the alias file still describes the catalog (§6).
-
-    A renamed category or a newly introduced origin breaks nothing loudly: queries that used to
-    resolve it simply stop resolving, which reads as a slow relevance regression rather than a
-    bug. Checking it at boot is what turns that into a fixable failure.
-
-    How loudly depends on whether the feature is live. With SMART_SEARCH_ENABLED the mismatch
-    means search is actively answering wrongly, so the service refuses to start. With the flag
-    off — the default, and every deploy before §19's rollout — it is logged instead: this
-    process also serves chat and MCP, and taking those down over a lexicon that nothing is
-    reading yet trades a real outage for a hypothetical one.
-
-    A database that cannot be reached is a different condition and is never fatal here. The
-    ordinary API must keep serving (§12), and the next boot checks again.
-    """
     try:
         async with open_scope() as scope:
             terms = await scope.resolve(ISearchRepository).catalog_terms()
@@ -190,25 +134,18 @@ def create_app() -> FastAPI:
 
     worker = IndexWorker(container.resolve(IIndexService), settings)
 
-    # Must run for the whole app lifetime even in stateless mode.
     @asynccontextmanager
     async def lifespan(_: FastAPI):
         await probe_search_capabilities()
         await probe_index_coverage()
         await verify_semantic_readiness(settings)
         await verify_search_lexicon(settings)
-        # §11 puts the worker in the serving process, so indexing needs no second host. The
-        # flag exists for the deployments that drive it from the CLI instead, and for tests,
-        # where a background task racing a truncate would make every assertion a coin toss.
         if settings.SEARCH_INDEX_WORKER_ENABLED:
             worker.start()
         try:
             async with mcp.session_manager.run():
                 yield
         finally:
-            # Uvicorn turns SIGTERM into this shutdown, so stopping here is §11 rule 8. The
-            # finally matters: an exception on the way out must still release the leases,
-            # otherwise the next deploy waits out a lease it could have had back immediately.
             await worker.stop()
             if container.engine is not None:
                 await container.engine.dispose()

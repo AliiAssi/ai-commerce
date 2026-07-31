@@ -36,29 +36,16 @@ from app.infrastructure.database.store_tables import products
 
 logger = logging.getLogger(__name__)
 
-# §15's quality gates. Named here rather than inlined so a report can print the bar it missed.
 GATE_EXACT_NAME = 1.0
 GATE_FILTER_PRECISION = 1.0
 GATE_RECALL_AT_5 = 0.90
 GATE_MRR = 0.90
 
 _NDCG_K = 10
-# Enough to see everything a case asserts. §15's windows are all <= 6; this leaves room for a
-# `required` product to be found at rank 12 and reported as a near miss rather than as absent.
 _PAGE_SIZE = 20
 
 
 class RelevanceService(IRelevanceService):
-    """Scores live retrieval against the §15 corpus.
-
-    It drives `ISearchService` rather than the repository, so what gets measured is what a
-    shopper receives — parsing, filter resolution, retrieval and the degraded-mode reporting all
-    included. Measuring the repository alone would score a component nobody uses directly.
-
-    Products are resolved from names to ids once per run. §15's fixture names products because
-    ids are serial and change on every reseed; a corpus keyed on ids would silently rot.
-    """
-
     def __init__(
         self,
         corpus: RelevanceCorpus,
@@ -75,9 +62,6 @@ class RelevanceService(IRelevanceService):
 
     async def score(self, *, label: str, include_drafts: bool = True) -> RelevanceReportDTO:
         catalog = await self._catalog()
-        # Recorded before the first query, because it decides which of §12's two lexical rungs
-        # every case below runs on. A caller that has not settled the gate gets step 4 and a
-        # report that says so, rather than a number nobody can attribute later.
         ready = self._coverage.ready
 
         results: list[CaseResultDTO] = []
@@ -113,13 +97,9 @@ class RelevanceService(IRelevanceService):
             gate_failures=_gate_failures(overall, by_language),
         )
 
-    # ---- one case ----------------------------------------------------------------------------
-
     async def _run_case(self, case: RelevanceCase, catalog: dict[str, int]) -> CaseResultDTO:
         unknown = [name for name in case.product_names if name not in catalog]
         if unknown:
-            # A case naming a product the catalog does not have is a corpus bug, and it has to be
-            # loud. Scoring it as a miss would look like a relevance regression forever.
             return CaseResultDTO(
                 case_id=case.id,
                 language=case.language,
@@ -140,7 +120,6 @@ class RelevanceService(IRelevanceService):
             async with self._scope_factory() as scope:
                 result = await scope.resolve(ISearchService).search(query)
         except AppError as exc:
-            # §9.3: a rejected query is a correct outcome for exactly one kind of case.
             if case.expect_error:
                 return CaseResultDTO(
                     case_id=case.id,
@@ -218,15 +197,6 @@ class RelevanceService(IRelevanceService):
         )
 
     def _effective_filters(self, case: RelevanceCase) -> EffectiveFilters:
-        """The filters retrieval actually applied.
-
-        Resolved here rather than read off the search result because `SearchResultDTO` carries
-        only what the *shopper* is shown — `inferred_filters` holds display labels for the chips,
-        and an explicit filter is applied without appearing there at all (§5.2.1). §15's
-        "expected parsed filters" means what was applied, so this is the surface to assert on;
-        `expect_inferred` covers the reporting half separately, which is exactly §15.3's
-        distinction between a filter being applied and a filter being reported.
-        """
         intent = self._parser.parse(case.query)
         return resolve_filters(intent, self._aliases, explicit=ExplicitFilters(**_explicit(case)))
 
@@ -279,8 +249,6 @@ class RelevanceService(IRelevanceService):
             failures.append(FAILURE_EXCLUDED)
             detail.extend(f"excluded {name!r} was returned" for name in present)
 
-    # ---- catalog -----------------------------------------------------------------------------
-
     async def _catalog(self) -> dict[str, int]:
         async with self._scope_factory() as scope:
             session = scope.resolve(AsyncSession)
@@ -303,7 +271,6 @@ def _relevant_ids(case: RelevanceCase, catalog: dict[str, int]) -> list[int]:
 
 
 def _filter_mismatches(case: RelevanceCase, effective: EffectiveFilters) -> list[str]:
-    """Compare the case's expected filters against the ones retrieval actually applied."""
     mismatches: list[str] = []
     for key, expected in case.expect_filters.items():
         actual = getattr(effective, key)
@@ -343,12 +310,6 @@ def _score_group(language: str, results: list[CaseResultDTO]) -> LanguageScoreDT
 
 
 def _gate_failures(overall: LanguageScoreDTO, by_language: list[LanguageScoreDTO]) -> list[str]:
-    """§15's quality gates.
-
-    Recall is checked overall *and independently per language*, which §15 spells out and §18.1
-    step 4 repeats: an aggregate that averages a strong English score against a weak Arabic one
-    hides exactly the failure this feature is most exposed to.
-    """
     failures: list[str] = []
     if overall.exact_name_rate < GATE_EXACT_NAME:
         failures.append(f"exact-name rate {overall.exact_name_rate:.2f} < {GATE_EXACT_NAME:.2f}")

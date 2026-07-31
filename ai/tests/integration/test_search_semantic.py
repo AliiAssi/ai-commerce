@@ -20,14 +20,6 @@ from app.infrastructure.irepositories.isearch_index_repository import ISearchInd
 from app.infrastructure.models.search import SearchDocument, SearchQueryEmbedding
 from tests.unit.fakes import FakeEmbeddingClient
 
-# The semantic leg as a shopper reaches it: through ISearchService, with the flag on, over a
-# catalog that has actually been embedded.
-#
-# Relevance is deliberately not asserted here. FakeEmbeddingClient hashes tokens into buckets, so
-# it has cosine structure but no cross-lingual behaviour whatsoever — asserting §15 recall
-# against it would prove the fake. Relevance is measured by score_relevance against the live
-# provider; these tests pin the mechanism.
-
 pytestmark = pytest.mark.skipif(
     not os.environ.get("TEST_DATABASE_URL"), reason="TEST_DATABASE_URL not set"
 )
@@ -57,8 +49,6 @@ class TestTheSemanticLegRuns:
     async def test_a_text_query_reports_hybrid_and_is_not_degraded(
         self, app, beit_catalog, embedding, smart_search
     ):
-        # The whole point of the phase: with a model and a filled column, a text search is no
-        # longer honestly reporting itself as lexical and degraded.
         embedding()
         await _index()
 
@@ -71,8 +61,6 @@ class TestTheSemanticLegRuns:
     async def test_the_ranker_version_records_that_a_leg_was_added(
         self, app, beit_catalog, embedding, smart_search
     ):
-        # §14.5: a ranking change that cannot be attributed to a version is not measurable, and
-        # adding a third leg changes the ordering of every query that has one.
         embedding()
         await _index()
 
@@ -81,10 +69,6 @@ class TestTheSemanticLegRuns:
     async def test_an_honest_empty_result_is_not_reported_as_a_broken_index(
         self, app, beit_catalog, embedding, smart_search
     ):
-        # Found in the live smoke test, not by any unit test: `zzzznotathing` correctly returned
-        # nothing and reported `degraded: true` with `index_incomplete`, because the empty-result
-        # path dropped `semantic_used` on its way out of the repository. That sends an operator
-        # to investigate a healthy index because search worked exactly as §7.4 requires.
         embedding()
         await _index()
 
@@ -97,8 +81,6 @@ class TestTheSemanticLegRuns:
     async def test_a_constraint_fallback_still_reports_the_semantic_leg_ran(
         self, app, beit_catalog, embedding, smart_search
     ):
-        # The other path out of an empty fusion: a query whose filters still answer. It runs the
-        # same risk of blaming the index for a query that simply matched nothing.
         embedding()
         await _index()
 
@@ -110,8 +92,6 @@ class TestTheSemanticLegRuns:
     async def test_a_pure_constraint_query_never_calls_the_provider(
         self, app, beit_catalog, embedding, smart_search
     ):
-        # §7.2: with no semantic remainder there is nothing to embed. Paying 434 ms to embed the
-        # empty string would be latency for no candidates.
         client = FakeEmbeddingClient()
         embedding(primary=client)
         await _index()
@@ -126,8 +106,6 @@ class TestTheQueryCache:
     async def test_a_repeated_query_does_not_call_the_provider_again(
         self, app, beit_catalog, embedding, smart_search
     ):
-        # §14.1: a cache hit avoids the provider entirely. This is what makes sustained query
-        # traffic affordable on a free tier that refused after ninety sequential calls.
         client = FakeEmbeddingClient()
         embedding(primary=client)
         await _index()
@@ -140,9 +118,6 @@ class TestTheQueryCache:
     async def test_the_cache_key_is_never_the_shopper_s_words(
         self, app, beit_catalog, embedding, smart_search
     ):
-        # §10.4 forbids keying on the raw query, and §13 explains the cost of doing it: a cache
-        # keyed on what shoppers typed is a durable log of what shoppers typed, outside the
-        # retention rules the analytics table has.
         embedding()
         await _index()
 
@@ -153,9 +128,6 @@ class TestTheQueryCache:
         assert len(keys.split(",")[0]) == 64
 
     async def test_an_expired_row_is_not_served(self, app, beit_catalog, embedding, smart_search):
-        # Expiry is enforced in the read predicate rather than by trusting the hourly prune to
-        # have run. A row served past its TTL was built by a model or a normalizer that may since
-        # have changed.
         client = FakeEmbeddingClient()
         embedding(primary=client)
         await _index()
@@ -172,8 +144,6 @@ class TestTheQueryCache:
     async def test_the_prune_removes_expired_rows_and_leaves_live_ones(
         self, app, beit_catalog, embedding, smart_search
     ):
-        # §10.4 requires a pruning job. Expired rows go; live ones stay, or the cache would be
-        # emptied on every housekeeping pass and every query would pay the provider again.
         embedding()
         await _index()
         await _search("olive oil")
@@ -194,17 +164,13 @@ class TestTheQueryCache:
     async def test_the_prune_runs_on_its_own_clock_rather_than_every_sweep(
         self, app, beit_catalog, embedding, smart_search
     ):
-        # The sweep runs every 20 seconds and these rows live for a day. Pruning on every sweep
-        # would be 4,320 statements a day to collect what one collects.
         embedding()
         service = container.resolve(IIndexService)
-        await service.sweep()  # the first sweep prunes and starts the clock
+        await service.sweep()
 
         assert await service.prune_query_cache() == 0
 
     async def test_a_different_model_gets_a_different_row(self, app):
-        # The key covers the model, so two providers' vectors can never be served for each other.
-        # This is the same rule the two columns enforce in storage, applied to the cache.
         first = query_cache_key(
             semantic_text="olive oil", language="en", embedding_model="model-a", dimensions=768
         )
@@ -218,8 +184,6 @@ class TestDegradation:
     async def test_a_dead_provider_serves_lexical_results_rather_than_failing(
         self, app, beit_catalog, embedding, smart_search
     ):
-        # §12: a provider failure MUST NOT return 500 when lexical search can run. The shopper
-        # gets a narrower answer, not an error page.
         embedding()
         await _index()
         embedding(
@@ -236,8 +200,6 @@ class TestDegradation:
     async def test_the_breaker_stops_every_query_paying_the_same_failure(
         self, app, beit_catalog, embedding, smart_search
     ):
-        # §12 requires an independent circuit breaker so repeated failures do not force every
-        # query to wait out the same timeout. Once open, the provider is not called at all.
         embedding()
         await _index()
 
@@ -255,11 +217,9 @@ class TestDegradation:
     async def test_indexing_and_searching_share_one_provider_s_circuit(
         self, app, beit_catalog, embedding, smart_search
     ):
-        # The breaker belongs to the provider, not to the caller. A backfill that has just proved
-        # the key is revoked should not leave every search rediscovering it one timeout at a time.
         client = FakeEmbeddingClient(fail_with=EmbeddingError("down", code=ERROR_UNAUTHORIZED))
         embedding(primary=client)
-        await _index()  # enough failing batches to trip it
+        await _index()
 
         calls_after_indexing = len(client.query_calls) + len(client.document_calls)
         await _search("olive oil")
@@ -269,14 +229,11 @@ class TestDegradation:
     async def test_an_unembedded_column_reports_the_index_not_the_provider(
         self, app, beit_catalog, embedding, smart_search
     ):
-        # Nothing failed here — the vectors simply are not there yet. §12 lists index coverage
-        # below the safe threshold as its own trigger, and reporting `embedding_unavailable`
-        # would send an operator looking at a provider that is perfectly healthy.
         embedding(
             primary=FakeEmbeddingClient(fail_with=EmbeddingError("down", code=ERROR_RATE_LIMITED))
         )
         await _index()
-        embedding()  # a healthy provider, but the column is still empty
+        embedding()
 
         result = await _search("olive oil")
 
@@ -286,8 +243,6 @@ class TestDegradation:
     async def test_the_flag_being_off_is_reported_as_configuration_not_a_fault(
         self, app, beit_catalog, embedding
     ):
-        # No `smart_search` fixture: the flag is off. §9.2 keeps this distinct from an outage
-        # because the storefront shows a fault banner for every other reason.
         embedding()
         await _index()
 
@@ -299,8 +254,6 @@ class TestDegradation:
     async def test_a_failing_primary_falls_over_to_the_second_column(
         self, app, beit_catalog, embedding, smart_search
     ):
-        # Two columns is what makes this safe: the fallback's query vector is compared against
-        # the fallback's own column, so both sides of every cosine come from one model.
         embedding(
             primary=FakeEmbeddingClient(model="primary-model"),
             fallback=FakeEmbeddingClient(model="fallback-model"),
@@ -321,9 +274,6 @@ class TestDegradation:
     async def test_a_query_vector_is_never_compared_against_the_other_model_s_column(
         self, app, beit_catalog, embedding, smart_search
     ):
-        # The reason two columns exist. With only the primary column filled, a fallback vector
-        # has nothing it may legally read, so the semantic leg must decline rather than compare
-        # across models and return confident nonsense.
         embedding(
             primary=FakeEmbeddingClient(model="primary-model"),
             fallback=FakeEmbeddingClient(model="fallback-model"),
@@ -352,10 +302,6 @@ class TestTransactionDiscipline:
     async def test_no_connection_is_held_while_the_provider_is_called(
         self, app, beit_catalog, embedding, smart_search
     ):
-        # §11 rule 9 and §8.2. The pool is five connections shared with the index worker, and a
-        # 434 ms provider call held across one of them takes the store down under any concurrency
-        # at all. This is why the controller resolves the service directly instead of through
-        # `Injected(...)`, which would open a transaction before the handler body ran.
         pool = container.engine.sync_engine.pool
         observed: list[int] = []
 

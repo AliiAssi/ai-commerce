@@ -20,9 +20,6 @@ from app.infrastructure.database.store_tables import products
 from app.infrastructure.models.search import SearchDocument, SearchIndexJob
 from tests.unit.fakes import FakeEmbeddingClient
 
-# The vector half of the indexing pipeline: what gets embedded, what happens when a provider is
-# down, and how the sweep notices a vector that a hash comparison cannot see.
-
 pytestmark = pytest.mark.skipif(
     not os.environ.get("TEST_DATABASE_URL"), reason="TEST_DATABASE_URL not set"
 )
@@ -59,8 +56,6 @@ class TestBackfill:
     async def test_the_model_and_width_are_stored_beside_every_vector(
         self, app, beit_catalog, embedding
     ):
-        # §10.2 stores both per row. Without them a catalog half-embedded by one model and half
-        # by another is undetectable, and the sweep has nothing to compare against configuration.
         embedding(primary=FakeEmbeddingClient(model="a-named-model"))
         await _index_everything(_service())
 
@@ -75,9 +70,6 @@ class TestBackfill:
         assert rows == len(beit_catalog)
 
     async def test_each_claimed_batch_costs_one_provider_call(self, app, beit_catalog, embedding):
-        # §11 requires provider calls to be batched, and the unit of batching is the claimed
-        # batch — the same window the lease covers. One request per product would be 46 on a free
-        # tier that started refusing after ninety during the phase-5 bake-off.
         client = FakeEmbeddingClient()
         embedding(primary=client)
         await _index_everything(_service())
@@ -88,8 +80,6 @@ class TestBackfill:
         assert max(len(call) for call in client.document_calls) <= batch_size
 
     async def test_a_second_sweep_embeds_nothing(self, app, beit_catalog, embedding):
-        # The drift predicate gained vector conditions; if they did not compare equal to what was
-        # just written, every sweep would re-embed the whole catalog for ever.
         client = FakeEmbeddingClient()
         embedding(primary=client)
         await _index_everything(_service())
@@ -121,8 +111,6 @@ class TestBackfill:
     async def test_an_unconfigured_fallback_column_stays_empty_and_quiet(
         self, app, beit_catalog, embedding
     ):
-        # The ordinary configuration. An unconfigured slot must contribute no drift condition, or
-        # the sweep would enqueue the whole catalog on every pass to fill a column nothing writes.
         embedding()
         await _index_everything(_service())
         await _service().sweep()
@@ -142,9 +130,6 @@ class TestVectorDrift:
     async def test_a_missing_vector_is_drift_even_though_the_text_is_current(
         self, app, beit_catalog, embedding
     ):
-        # The trap this phase exists around: §0.4's sweep compares document_hash and
-        # document_version, and a row whose text is perfectly current but whose embedding is NULL
-        # — every row the moment migration 0003 lands — is drifted by neither.
         embedding()
         await _index_everything(_service())
         async with container.session_factory() as session, session.begin():
@@ -155,8 +140,6 @@ class TestVectorDrift:
         assert enqueued == len(beit_catalog)
 
     async def test_changing_the_model_re_embeds_the_catalog(self, app, beit_catalog, embedding):
-        # An operator switching providers is the recovery path for a revoked quota. Nothing about
-        # the text changes, so only the stored model can reveal it.
         embedding(primary=FakeEmbeddingClient(model="old-model"))
         await _index_everything(_service())
 
@@ -195,8 +178,6 @@ class TestVectorDrift:
     async def test_configuring_a_fallback_later_does_not_re_embed_the_primary(
         self, app, beit_catalog, embedding
     ):
-        # Per-slot staleness. Without it, adding a second provider would pay the primary's whole
-        # backfill again to rewrite vectors that were already correct.
         primary = FakeEmbeddingClient(model="primary-model")
         embedding(primary=primary)
         await _index_everything(_service())
@@ -214,9 +195,6 @@ class TestProviderFailure:
     async def test_a_new_product_is_still_stored_lexically_when_embedding_fails(
         self, app, beit_catalog, embedding
     ):
-        # §12: an embedding outage must not take out the leg that needs no provider. Without a
-        # document the product is invisible to lexical search too, and coverage drops far enough
-        # to move the whole store from step 3 to step 4.
         embedding(
             primary=FakeEmbeddingClient(fail_with=EmbeddingError("down", code=ERROR_RATE_LIMITED))
         )
@@ -236,9 +214,6 @@ class TestProviderFailure:
     async def test_an_existing_document_is_left_alone_when_embedding_fails(
         self, app, beit_catalog, embedding
     ):
-        # The other half of the split. Writing the new text without a new vector would make the
-        # stored hash current, and a current hash is what the sweep uses to decide a row is done —
-        # so the row would look finished for ever holding a vector for text that no longer exists.
         client = FakeEmbeddingClient()
         embedding(primary=client)
         await _index_everything(_service())
@@ -259,14 +234,11 @@ class TestProviderFailure:
             .where(products.c.name == "Baladi Extra Virgin Olive Oil")
         )
         assert "Edited while the provider is down." not in stored_text
-        # And it is still queued, because the hash still disagrees.
         assert await _scalar(select(func.count()).select_from(jobs)) >= 1
 
     async def test_a_provider_failure_records_a_code_never_a_message(
         self, app, beit_catalog, embedding
     ):
-        # §10.3: operators read these rows, so they must diagnose without carrying a provider
-        # message, a URL or a key.
         embedding(
             primary=FakeEmbeddingClient(
                 fail_with=EmbeddingError("secret-key-value leaked", code=ERROR_RATE_LIMITED)
@@ -281,8 +253,6 @@ class TestProviderFailure:
     async def test_a_revoked_key_stops_immediately_instead_of_retrying_to_the_cap(
         self, app, beit_catalog, embedding
     ):
-        # §11 rule 6. An unauthorized response returns the same answer on every attempt, so
-        # spending five backoffs to reach it only delays the row appearing in failed_jobs.
         embedding(
             primary=FakeEmbeddingClient(fail_with=EmbeddingError("nope", code=ERROR_UNAUTHORIZED))
         )
@@ -295,8 +265,6 @@ class TestProviderFailure:
     async def test_a_rate_limit_backs_off_rather_than_exhausting_the_job(
         self, app, beit_catalog, embedding
     ):
-        # The opposite case, and the reason `retryable` exists: 429 is recoverable and must not
-        # burn the attempt cap on a provider that will answer in a minute.
         embedding(
             primary=FakeEmbeddingClient(
                 fail_with=EmbeddingError("slow down", code=ERROR_RATE_LIMITED)
@@ -310,8 +278,6 @@ class TestProviderFailure:
     async def test_a_failing_provider_never_destroys_a_stored_vector(
         self, app, beit_catalog, embedding
     ):
-        # §11: the last known-good index survives until a replacement is stored. A NULL bound for
-        # a slot with no new vector must COALESCE to what was already there.
         client = FakeEmbeddingClient()
         embedding(primary=client)
         await _index_everything(_service())
@@ -330,8 +296,6 @@ class TestSemanticCoverage:
     async def test_vector_coverage_is_separate_from_document_coverage(
         self, app, beit_catalog, embedding
     ):
-        # Two readinesses. Reusing one flag would either switch the lexical leg off for an
-        # embedding problem, or run the semantic leg over a half-filled column.
         embedding(
             primary=FakeEmbeddingClient(fail_with=EmbeddingError("down", code=ERROR_RATE_LIMITED))
         )
@@ -352,7 +316,4 @@ class TestSemanticCoverage:
         assert not coverage.semantic(FALLBACK_SLOT), "an unconfigured slot reported itself ready"
 
     async def test_an_unreported_slot_is_never_ready(self, app):
-        # The gate defaults closed for the same reason the document gate does: reading a column
-        # that is empty or half-written is worse than not reading it, and here "worse" means
-        # plausible neighbours rather than nothing.
         assert not IndexCoverage().semantic(PRIMARY_SLOT)
