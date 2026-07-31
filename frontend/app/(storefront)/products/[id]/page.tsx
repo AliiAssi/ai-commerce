@@ -103,7 +103,7 @@ export default async function ProductPage({ params }: Props) {
               {product.stock <= LOW_STOCK_AT && <Eyebrow>Only {product.stock} left</Eyebrow>}
             </div>
           ) : (
-            <p className="text-sm text-danger">Sold out — check back soon.</p>
+            <p className="text-sm text-danger">Sold out, check back soon.</p>
           )}
 
           {product.origin && (
