@@ -12,6 +12,18 @@ from app.core.config import load_settings_or_exit
 from app.core.container import container
 from app.core.logging import setup_logging
 from app.core.registry import configure
+from app.core.relevance import load_corpus
+
+HARD_SET = (
+    "ar-soap-no-origin",
+    "ar-olive-oil-soap-both",
+    "ar-tea",
+    "ar-gift-for-a-new-home",
+    "ar-something-for-breakfast",
+    "en-gift-for-a-cook",
+    "en-natural-sweetener",
+    "en-something-for-breakfast",
+)
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -28,6 +40,16 @@ def _parser() -> argparse.ArgumentParser:
         "--gates-only",
         action="store_true",
         help="skip the draft cases and score only what gates a release",
+    )
+    parser.add_argument(
+        "--only",
+        default="",
+        help="comma-separated case ids to score, instead of the whole corpus",
+    )
+    parser.add_argument(
+        "--phase7",
+        action="store_true",
+        help="the 24 gating cases plus the 8-case hard set: the whole phase 7 decision in 32 calls",
     )
     parser.add_argument("--json", action="store_true", help="emit the full report as JSON")
     parser.add_argument(
@@ -94,8 +116,14 @@ async def run(argv: list[str] | None = None) -> int:
 
     try:
         await container.resolve(IIndexService).refresh_coverage()
+        only = [c.strip() for c in args.only.split(",") if c.strip()]
+        if args.phase7:
+            corpus = load_corpus()
+            only = [case.id for case in corpus.cases if case.is_gate] + list(HARD_SET)
         report = await container.resolve(IRelevanceService).score(
-            label=args.label, include_drafts=not args.gates_only
+            label=args.label,
+            include_drafts=not args.gates_only,
+            only=only or None,
         )
         if args.json:
             print(json.dumps(report.model_dump(), indent=2, ensure_ascii=False))
