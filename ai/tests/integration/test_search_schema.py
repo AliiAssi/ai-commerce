@@ -10,9 +10,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.container import container, open_scope
 from app.core.vector_schema import EMBEDDING_VECTOR_DIMENSIONS
 
-# The search schema this service owns. Nothing here exercises search behaviour, because there is
-# none yet — these tests pin the structural guarantees the rest of the feature will assume.
-
 pytestmark = pytest.mark.skipif(
     not os.environ.get("TEST_DATABASE_URL"), reason="TEST_DATABASE_URL not set"
 )
@@ -74,13 +71,8 @@ class TestSchema:
 
 
 class TestVectorColumns:
-    """§10.2's embedding storage. Structural, because the semantic leg assumes all of it."""
-
     @pytest.mark.parametrize("slot", ["embedding", "fallback_embedding"])
     async def test_the_vector_column_is_the_width_the_model_was_chosen_at(self, app, slot: str):
-        # atttypmod carries vector(n)'s n. A column built at a different width than
-        # EMBEDDING_DIMENSIONS would not fail until the first write, after a backfill had been
-        # paid for — which is why the boot guard compares the two.
         width = await _scalar(
             "SELECT atttypmod FROM pg_attribute "
             "WHERE attrelid = 'ai_search_documents'::regclass AND attname = :name",
@@ -90,9 +82,6 @@ class TestVectorColumns:
 
     @pytest.mark.parametrize("slot", ["embedding", "fallback_embedding"])
     async def test_the_vector_column_is_nullable(self, app, slot: str):
-        # §10.2 forbids NOT NULL before the initial backfill completes. Every document is NULL
-        # here the moment this migration lands, and the fallback column stays NULL for good when
-        # no second provider is configured.
         nullable = await _scalar(
             "SELECT is_nullable FROM information_schema.columns "
             "WHERE table_name = 'ai_search_documents' AND column_name = :name",
@@ -105,9 +94,6 @@ class TestVectorColumns:
         ["ix_ai_search_documents_embedding", "ix_ai_search_documents_fallback_embedding"],
     )
     async def test_the_vector_index_is_hnsw_with_cosine_operators(self, app, index: str):
-        # Retrieval ranks by `1 - (embedding <=> :q)`. An index built for a different operator
-        # class is never chosen, the query silently falls back to a sequential scan, and the only
-        # symptom is latency at a catalog size this test does not have.
         definition = await _scalar(
             "SELECT indexdef FROM pg_indexes WHERE indexname = :name", name=index
         )
@@ -126,12 +112,9 @@ class TestCatalogForeignKeys:
             )
             or ""
         )
-        # 'c' is ON DELETE CASCADE. Without it a deleted product could strand a search document.
         assert row == "c", f"{table} has no cascading foreign key to products"
 
     async def test_a_document_cannot_reference_a_product_that_does_not_exist(self, app, catalog):
-        # The whole point of keeping a real foreign key: the database refuses, rather than the
-        # index quietly accumulating rows pointing at nothing.
         with pytest.raises(IntegrityError):
             async with open_scope() as scope:
                 await scope.resolve(AsyncSession).execute(
@@ -173,8 +156,6 @@ class TestCatalogForeignKeys:
 
 class TestJobQueue:
     async def test_repeated_edits_coalesce_into_one_row(self, app, catalog):
-        # product_id is the primary key precisely so a burst of edits leaves one unit of work
-        # rather than a pile the worker would collapse later.
         product_id = await _product_id("Alpha Tent")
         async with open_scope() as scope:
             session = scope.resolve(AsyncSession)
@@ -194,7 +175,6 @@ class TestJobQueue:
         assert queued == 1
 
     async def test_a_claimed_job_is_invisible_to_a_second_worker(self, app, catalog):
-        # SKIP LOCKED is what lets more than one worker run without double-embedding a product.
         product_id = await _product_id("Alpha Tent")
         async with open_scope() as scope:
             await scope.resolve(AsyncSession).execute(
@@ -212,15 +192,12 @@ class TestJobQueue:
             claimed = (await first.execute(claim)).scalar_one_or_none()
             assert claimed == product_id
 
-            # A second worker, while the first still holds its transaction open.
             async with container.session_factory() as second, second.begin():
                 assert (await second.execute(claim)).scalar_one_or_none() is None
 
 
 class TestScopes:
     async def test_each_scope_is_independent(self, app):
-        # The read scope and the write scope around an embedding call must share no session and
-        # no cached instance, so nothing survives across the provider call by accident.
         async with open_scope() as first:
             first_session = first.resolve(AsyncSession)
         async with open_scope() as second:

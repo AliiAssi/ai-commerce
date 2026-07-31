@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
-# Failure codes. Codes rather than prose so a report can be diffed between two runs and the
-# difference read at a glance — which is the whole point of scoring a fixed corpus.
 FAILURE_FIRST = "wrong_first"
 FAILURE_NOT_FIRST = "should_not_be_first"
 FAILURE_MISSING = "missing_required"
@@ -17,8 +15,6 @@ FAILURE_UNKNOWN_PRODUCT = "unknown_product"
 
 
 class CaseResultDTO(BaseModel):
-    """What one judged query actually did."""
-
     model_config = {"frozen": True}
 
     case_id: str
@@ -30,7 +26,6 @@ class CaseResultDTO(BaseModel):
     failures: list[str] = Field(default_factory=list)
     detail: list[str] = Field(default_factory=list)
 
-    # Per-case metric contributions. None means the case does not participate in that gate.
     reciprocal_rank: float | None = None
     recall_at_k: float | None = None
     ndcg_at_10: float | None = None
@@ -44,8 +39,6 @@ class CaseResultDTO(BaseModel):
 
 
 class LanguageScoreDTO(BaseModel):
-    """§15's gates, computed for one language. Reported separately per §18.1 step 4."""
-
     model_config = {"frozen": True}
 
     language: str
@@ -64,17 +57,6 @@ class LanguageScoreDTO(BaseModel):
 
 
 class RelevanceReportDTO(BaseModel):
-    """One scoring run over the corpus.
-
-    `label` names what was being scored — a baseline, or a candidate embedding model — because a
-    report that cannot say what produced it is not evidence of anything.
-
-    `retrieval_path` is there for the same reason and was added after a run mislabelled itself:
-    the coverage gate is process state, so a scorer that never refreshed it silently measured
-    §12's step 4 while the report claimed step 3. Two rungs, two different sets of results, and
-    nothing in the numbers to tell them apart.
-    """
-
     model_config = {"frozen": True}
 
     label: str

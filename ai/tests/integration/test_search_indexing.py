@@ -40,12 +40,6 @@ def coverage(app) -> IndexCoverage:
 
 @pytest.fixture
 async def retrieve(app):
-    """Run one query through the real repository and hand back the RetrievalResult.
-
-    Deliberately not through `ISearchService`: `documents_used` and `lexical_hits` are internal
-    to retrieval and §7.4 keeps them out of the public contract, so the only place they can be
-    asserted is here.
-    """
 
     async def run(query: str):
         aliases = container.resolve(AliasLibrary)
@@ -79,23 +73,15 @@ async def _execute(stmt, params=None):
 
 
 async def _index_everything(service: IIndexService) -> None:
-    """Sweep and drain, the way the worker or the CLI would."""
     await service.sweep()
     await service.drain(max_batches=50)
     await service.refresh_coverage()
 
 
 class TestDocumentGeneration:
-    """§7.1's document, and the one place two implementations of it have to agree."""
-
     async def test_the_sql_hash_agrees_with_the_python_hash_for_every_product(
         self, index_service, beit_catalog
     ):
-        # The single highest-consequence assertion in the indexing pipeline. The sweep decides
-        # what is stale by comparing a hash Postgres computes against a hash the worker computed
-        # in Python. If they disagree by one byte every product is permanently drifted: the
-        # worker never idles, and once phase 6 puts an embedding call in that loop it re-embeds
-        # the whole catalog on every sweep, forever, at provider prices.
         from app.infrastructure.repositories.search_index_repository import _document_hash_sql
 
         rows = await _all(
@@ -123,9 +109,6 @@ class TestDocumentGeneration:
     async def test_a_product_without_an_origin_omits_the_origin_line_on_both_sides(
         self, index_service, catalog
     ):
-        # The `catalog` fixture seeds products with no origin, which is the branch the CASE in
-        # the SQL twin exists for. If the two disagreed only here, the drift sweep would loop on
-        # exactly the products nobody thought to check.
         from app.infrastructure.repositories.search_index_repository import _document_hash_sql
 
         rows = await _all(
@@ -170,29 +153,18 @@ class TestDocumentGeneration:
     ):
         await _index_everything(index_service)
 
-        # setweight is what makes it safe to put category and origin into the index at all: the
-        # labels are stored in the tsvector, so a lexeme's provenance survives into ranking. If
-        # this ever stored an unweighted vector, ts_rank's weight array would silently do nothing
-        # and every category word would count as much as a product name.
         vector = await _scalar(
             select(cast(documents.c.search_vector_en, Text))
             .join(products, products.c.id == documents.c.product_id)
             .where(products.c.name == "Baladi Extra Virgin Olive Oil")
         )
-        # 'baladi' comes from the name and 'koura' only from the origin line, so their labels
-        # are what prove the three fields were weighted separately rather than concatenated.
         assert "'baladi':1A" in vector
         assert re.search(r"'koura':\d+B", vector)
-        # A description lexeme carries D, which Postgres prints as nothing at all because D is
-        # the default weight. Asserting the *absence* of a letter is the only way to tell a
-        # correctly D-weighted lexeme from one that was never weighted.
         described = re.search(r"'bitter':(\d+)([A-D]?)", vector)
         assert described is not None and described.group(2) == ""
 
 
 class TestDriftSweep:
-    """§0.4's replacement for the transactional enqueue §10.3 asks for and cannot have."""
-
     async def test_a_fresh_catalog_enqueues_every_active_product(self, index_service, beit_catalog):
         report = await index_service.sweep()
 
@@ -202,9 +174,6 @@ class TestDriftSweep:
     async def test_indexing_clears_the_queue_and_a_second_sweep_finds_no_drift(
         self, index_service, beit_catalog
     ):
-        # The sweep going quiet is the proof that the SQL and Python hashes agree in practice
-        # and not only in the parity test above: any disagreement shows up here as work that
-        # never finishes.
         await index_service.sweep()
         report = await index_service.drain(max_batches=50)
 
@@ -226,8 +195,6 @@ class TestDriftSweep:
     async def test_editing_a_semantic_field_re_enqueues_the_product(
         self, index_service, beit_catalog, column, value
     ):
-        # §10.3's semantic-field list. Without this the storefront would keep answering with the
-        # old name until something else happened to touch the product.
         await _index_everything(index_service)
         await _execute(
             update(products)
@@ -239,8 +206,6 @@ class TestDriftSweep:
         assert report.enqueued == 1
 
     async def test_recategorising_a_product_re_enqueues_it(self, index_service, beit_catalog):
-        # The category name is part of the document even though it lives on another table, so a
-        # move between categories is a semantic change with no change to the product's own row.
         await _index_everything(index_service)
         other = await _scalar(select(categories.c.id).where(categories.c.slug == "pantry"))
         await _execute(
@@ -259,9 +224,6 @@ class TestDriftSweep:
     async def test_editing_a_live_field_does_not_re_enqueue_anything(
         self, index_service, beit_catalog, column, value
     ):
-        # The other half of §10.3, and the reason a price edit is free: these are read live
-        # during filtering and ranking, so re-embedding on a price change would spend provider
-        # money to arrive at exactly the same vector.
         await _index_everything(index_service)
         await _execute(
             update(products)
@@ -275,8 +237,6 @@ class TestDriftSweep:
     async def test_a_document_version_bump_re_enqueues_the_whole_catalog(
         self, index_service, beit_catalog
     ):
-        # §7.1 requires a format change to mark every document stale. Nothing about a product
-        # changes here, so only the version comparison can catch it.
         await _index_everything(index_service)
         await _execute(update(documents).values(document_version=DOCUMENT_VERSION - 1))
 
@@ -288,10 +248,6 @@ class TestArchival:
     async def test_archiving_prunes_the_document_and_unarchiving_restores_it(
         self, index_service, beit_catalog, archive_product
     ):
-        # Archival is the one kind of drift the foreign key cannot see: ON DELETE CASCADE cleans
-        # up after a *deleted* product, and products here are archived rather than deleted. The
-        # shopper is protected either way — membership comes from `products` — but leaving the
-        # document behind would make coverage a number that needs its own definition.
         await _index_everything(index_service)
         await archive_product("Baladi Extra Virgin Olive Oil")
 
@@ -313,20 +269,15 @@ class TestArchival:
         await _index_everything(index_service)
         await _execute(products.delete().where(products.c.name == "Baladi Extra Virgin Olive Oil"))
 
-        # The cascade already did this; the sweep must not then resurrect the row.
         assert await _scalar(select(func.count()).select_from(documents)) == len(beit_catalog) - 1
         report = await index_service.sweep()
         assert report.enqueued == 0
 
 
 class TestClaimProtocol:
-    """Crash safety: §11 rules 1 and 7, and the phase gate's 'loses and duplicates nothing'."""
-
     async def test_two_workers_never_claim_the_same_job(self, index_service, beit_catalog):
         await index_service.sweep()
 
-        # Two open transactions, claiming concurrently. SKIP LOCKED is what makes the second one
-        # step over the first one's rows instead of blocking on them.
         async with (
             container.session_factory() as first,
             first.begin(),
@@ -361,7 +312,6 @@ class TestClaimProtocol:
             )
         assert held not in {job.product_id for job in others}
 
-        # A crashed worker leaves exactly this state, and nothing has to clean up after it.
         await _execute(
             update(jobs)
             .where(jobs.c.product_id == held)
@@ -376,9 +326,6 @@ class TestClaimProtocol:
     async def test_an_abandoned_batch_is_reindexed_without_loss_or_duplication(
         self, index_service, beit_catalog
     ):
-        # The phase gate, in a test: kill a worker mid-batch and nothing is lost and nothing is
-        # duplicated. Duplication is structurally impossible — product_id is the primary key of
-        # both tables — so what this actually proves is that an abandoned lease comes back.
         await index_service.sweep()
         async with container.session_factory() as session, session.begin():
             abandoned = await _repository(session).claim_batch(
@@ -386,7 +333,6 @@ class TestClaimProtocol:
             )
         assert len(abandoned) == 8
 
-        # Everything the crashed worker was not holding indexes normally.
         await index_service.drain(max_batches=50)
         assert await _scalar(select(func.count()).select_from(documents)) == len(beit_catalog) - 8
 
@@ -402,8 +348,6 @@ class TestClaimProtocol:
         assert (await index_service.sweep()).enqueued == 0
 
     async def test_shutdown_hands_back_this_process_leases(self, index_service, beit_catalog):
-        # Otherwise a redeploy waits out a lease it could have had back immediately, and the
-        # first sweep after a restart does nothing for SEARCH_INDEX_LEASE_SECONDS.
         await index_service.sweep()
         async with container.session_factory() as session, session.begin():
             await _repository(session).claim_batch(
@@ -440,8 +384,6 @@ class TestFailureHandling:
         assert row.next_attempt_at > datetime.now(UTC) + timedelta(seconds=20)
 
     async def test_the_backoff_is_exponential_and_capped(self, index_service):
-        # §11 rule 5. The cap is what stops a permanently broken product pushing its next
-        # attempt past the point where anyone would see it fail.
         delays = [index_service.backoff_seconds(n) for n in range(0, 12)]
         assert delays[0] < delays[1] < delays[2]
         assert delays[1] == delays[0] * 2
@@ -451,9 +393,6 @@ class TestFailureHandling:
     async def test_an_exhausted_job_stops_being_claimed_and_the_sweep_leaves_it_alone(
         self, index_service, beit_catalog
     ):
-        # §11 rule 6: permanent failures wait for an operator instead of retrying forever. The
-        # sweep must not reset them either — its ON CONFLICT DO NOTHING is what stops a
-        # permanently failing product becoming a loop no attempt cap could break.
         await index_service.sweep()
         product_id = await _scalar(select(products.c.id).limit(1))
         await _execute(
@@ -480,8 +419,6 @@ class TestFailureHandling:
     async def test_an_operator_reset_makes_an_exhausted_job_claimable_again(
         self, index_service, beit_catalog
     ):
-        # The other side of the split: naming a product on the CLI is an explicit request to
-        # retry it, so that path resets attempts where the sweep deliberately does not.
         await index_service.sweep()
         product_id = await _scalar(select(products.c.id).limit(1))
         await _execute(
@@ -503,8 +440,6 @@ class TestFailureHandling:
 
 
 class TestCoverageGate:
-    """Which rung of §12's ladder retrieval runs on, and what each one can find."""
-
     async def test_an_unfilled_index_leaves_retrieval_on_the_catalog_vector(
         self, index_service, beit_catalog, retrieve
     ):
@@ -530,7 +465,6 @@ class TestCoverageGate:
         await _index_everything(index_service)
         assert coverage.ready is True
 
-        # Well past the 5% the default threshold tolerates.
         await _execute(
             documents.delete().where(documents.c.product_id.in_(select(products.c.id).limit(10)))
         )
@@ -542,13 +476,6 @@ class TestCoverageGate:
     async def test_a_category_word_is_findable_only_through_the_documents(
         self, index_service, beit_catalog, retrieve
     ):
-        # This is what phase 4 actually buys the shopper. "Tableware" appears in the category
-        # name "Ceramics & Tableware" and in no product name or description, so web's generated
-        # products.search_vector — name and description only — cannot see it at all.
-        #
-        # The assertion is on `lexical_hits`, not on the total: the trigram leg reaches one
-        # product by spelling similarity to its name even now, which is a coincidence of this
-        # catalog and not the thing being tested.
         before = await retrieve("tableware")
         assert before.documents_used is False
         assert before.lexical_hits == 0
@@ -563,9 +490,6 @@ class TestCoverageGate:
     async def test_an_origin_is_findable_through_the_lexical_leg(
         self, index_service, beit_catalog, retrieve
     ):
-        # Same shape, for the other field the flat vector omits. The trigram leg can reach some
-        # origins by similarity to the name column, so this asserts the *lexical* leg
-        # specifically rather than merely that something came back.
         await _index_everything(index_service)
 
         result = await retrieve("chouf")
@@ -575,9 +499,6 @@ class TestCoverageGate:
     async def test_the_product_name_still_outranks_a_category_match(
         self, index_service, beit_catalog, retrieve
     ):
-        # The precision half of the same change. Putting category text into the index would be a
-        # regression without setweight: every product in "Coffee & Sweets" matches `coffee` on
-        # its category line, and the actual coffee has to stay in front of them.
         await _index_everything(index_service)
 
         result = await retrieve("coffee")
@@ -593,9 +514,6 @@ class TestCoverageReporting:
         await _index_everything(index_service)
         await archive_product("Baladi Extra Virgin Olive Oil")
 
-        # Before the prune runs, the document for the archived product still exists. It must not
-        # be counted as coverage of a product that is no longer in the catalog, or coverage could
-        # read as complete while a live product had nothing.
         reported = await index_service.refresh_coverage()
         assert reported.active_products == len(beit_catalog) - 1
         assert reported.documents == len(beit_catalog) - 1
@@ -604,8 +522,6 @@ class TestCoverageReporting:
         reported = await index_service.refresh_coverage()
 
         assert reported.active_products == 0
-        # Not a division-by-zero convention: "ready" has to mean there is positive evidence the
-        # index is populated, because a stale value defaults the whole store onto that path.
         assert coverage.ready is False
 
 

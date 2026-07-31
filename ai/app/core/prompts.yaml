@@ -1,6 +1,3 @@
-# ALL LLM-facing prompt text lives here — no prompt strings hardcoded in Python.
-# {placeholders} are filled by PromptLibrary.render().
-
 chat:
   system: |
     You are the shopping assistant for {store_name}, an online store.

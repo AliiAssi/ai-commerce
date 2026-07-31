@@ -40,7 +40,14 @@ def test_search_timeout_must_be_positive():
 
 def test_search_timeout_is_far_below_the_chat_timeout():
     # A shopper on a catalog page will not wait an LLM-length timeout for results.
-    assert make().SEARCH_TIMEOUT_SECONDS <= 5.0
+    #
+    # Raised from 5.0 on 2026-07-31 with the owner, when RERANKER_TIMEOUT_SECONDS went to 5 s to
+    # accommodate a slow cross-encoder. The bound has to clear what the AI service may spend —
+    # query embedding plus retrieval plus the reranker — or the gateway abandons the request
+    # before the reranker answers and web serves lexical results, which is the outcome this
+    # whole chain exists to avoid. It is still a small fraction of a chat timeout, which is the
+    # comparison this test is named for.
+    assert make().SEARCH_TIMEOUT_SECONDS <= 10.0
 
 
 def test_migrations_need_only_a_database_url():

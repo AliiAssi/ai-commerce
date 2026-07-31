@@ -2,24 +2,57 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
+from dataclasses import dataclass
 
 from app.application.dtos.search_dto import SearchIntent
 
-# Rerank outcomes, recorded on the search event (§14.5) and used to pick §9.2's mode.
-#
-# `skipped` and `unavailable` are deliberately different values. Skipping is correct behaviour —
-# §7.3 skips reranking for explicit sorts because those sorts own the ordering — while
-# unavailable is a failure that §12 requires to be reported as `degraded` with
-# `reranker_unavailable`. Collapsing them would make an outage indistinguishable from a shopper
-# choosing "price: low to high".
 RERANK_APPLIED = "applied"
 RERANK_SKIPPED = "skipped"
 RERANK_UNAVAILABLE = "unavailable"
 
+ERROR_RATE_LIMITED = "rate_limited"
+ERROR_QUOTA_EXHAUSTED = "quota_exhausted"
+ERROR_UNAUTHORIZED = "unauthorized"
+ERROR_BAD_REQUEST = "bad_request"
+ERROR_UNAVAILABLE = "provider_unavailable"
+ERROR_MALFORMED = "malformed_response"
+
+RETRYABLE = frozenset({ERROR_RATE_LIMITED, ERROR_UNAVAILABLE})
+
+
+class RerankError(Exception):
+    def __init__(self, message: str, *, code: str = ERROR_UNAVAILABLE) -> None:
+        super().__init__(message)
+        self.code = code
+
+    @property
+    def retryable(self) -> bool:
+        return self.code in RETRYABLE
+
+
+def classify_http_error(exc: Exception, body: str = "") -> str:
+    status = getattr(getattr(exc, "response", None), "status_code", None)
+    haystack = body.lower()
+    if status == 402:
+        return ERROR_QUOTA_EXHAUSTED
+    if status == 429:
+        return ERROR_RATE_LIMITED
+    if status in (401, 403):
+        if "insufficient_balance" in haystack or "insufficient account balance" in haystack:
+            return ERROR_QUOTA_EXHAUSTED
+        return ERROR_UNAUTHORIZED
+    if status == 400:
+        return ERROR_BAD_REQUEST
+    return ERROR_UNAVAILABLE
+
+
+@dataclass(frozen=True, slots=True)
+class RerankCandidate:
+    product_id: int
+    document_text: str
+
 
 class RerankResult:
-    """The order to use, and what actually happened to produce it."""
-
     __slots__ = ("outcome", "product_ids", "version")
 
     def __init__(self, product_ids: Sequence[int], *, outcome: str, version: str = "") -> None:
@@ -35,37 +68,59 @@ class RerankResult:
 class IReranker(ABC):
     @property
     @abstractmethod
-    def version(self) -> str:
-        """Prompt/schema version, logged with search analytics (§7.4)."""
+    def version(self) -> str: ...
 
     @abstractmethod
     async def rerank(
-        self, intent: SearchIntent, product_ids: Sequence[int], *, window: int
-    ) -> RerankResult:
-        """Reorder the top `window` candidates against the shopper's intent.
-
-        Receives ids and intent only. §7.3 lists what the reranker may see and customer identity,
-        history, cart and order data are all absent from it.
-        """
+        self, intent: SearchIntent, candidates: Sequence[RerankCandidate], *, window: int
+    ) -> RerankResult: ...
 
 
 class PassthroughReranker(IReranker):
-    """Returns the RRF order untouched — §12's step 2, as the default until phase 7.
-
-    Reported as `skipped` rather than `unavailable`, and the difference reaches the shopper.
-    Nothing failed here: no reranker is configured, which is a deployment state, and
-    `reranker_unavailable` would set `degraded` on every search for the whole of this phase.
-    The frontend shows a "the smarter search is briefly unavailable" banner for every degraded
-    reason except `feature_disabled` (`isFaultDegradation`), so reporting a fault here would put
-    a permanent apology under a search that is working exactly as configured. `reranked: false`
-    in the response already says the true thing.
-    """
-
     @property
     def version(self) -> str:
         return "passthrough-1"
 
     async def rerank(
-        self, intent: SearchIntent, product_ids: Sequence[int], *, window: int
+        self, intent: SearchIntent, candidates: Sequence[RerankCandidate], *, window: int
     ) -> RerankResult:
-        return RerankResult(product_ids, outcome=RERANK_SKIPPED, version=self.version)
+        return RerankResult(
+            [candidate.product_id for candidate in candidates],
+            outcome=RERANK_SKIPPED,
+            version=self.version,
+        )
+
+
+def order_by_scores(
+    candidates: Sequence[RerankCandidate], scores: Sequence[float], *, window: int
+) -> list[int]:
+    head = list(candidates[:window])
+    tail = list(candidates[window:])
+    if len(scores) != len(head):
+        raise RerankError(
+            f"expected {len(head)} scores, received {len(scores)}", code=ERROR_MALFORMED
+        )
+    ranked = sorted(range(len(head)), key=lambda i: -scores[i])
+    return [head[i].product_id for i in ranked] + [candidate.product_id for candidate in tail]
+
+
+class ScoringReranker(IReranker):
+    @abstractmethod
+    async def score(
+        self, intent: SearchIntent, candidates: Sequence[RerankCandidate]
+    ) -> Sequence[float]: ...
+
+    async def rerank(
+        self, intent: SearchIntent, candidates: Sequence[RerankCandidate], *, window: int
+    ) -> RerankResult:
+        head = list(candidates[:window])
+        if len(head) < 2:
+            return RerankResult(
+                [candidate.product_id for candidate in candidates],
+                outcome=RERANK_SKIPPED,
+                version=self.version,
+            )
+
+        scores = await self.score(intent, head)
+        ordered = order_by_scores(candidates, scores, window=window)
+        return RerankResult(ordered, outcome=RERANK_APPLIED, version=self.version)

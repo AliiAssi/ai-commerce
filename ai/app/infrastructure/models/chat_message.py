@@ -20,7 +20,7 @@ class ChatMessage(Base):
         ForeignKey("ai_chat_sessions.id", ondelete="CASCADE"),
         nullable=False,
     )
-    role: Mapped[str] = mapped_column(String(16), nullable=False)  # "user" | "assistant" | "tool"
+    role: Mapped[str] = mapped_column(String(16), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
     tool_calls: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONB)
     created_at: Mapped[datetime] = mapped_column(

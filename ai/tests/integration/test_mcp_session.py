@@ -16,7 +16,6 @@ pytestmark = pytest.mark.skipif(
 MCP_URL = "http://test/mcp"
 
 
-# an httpx client bound to the in-process ASGI app, with the bearer header baked in
 def _asgi_client(app, token: str) -> httpx.AsyncClient:
     return httpx.AsyncClient(
         transport=httpx.ASGITransport(app=app),
@@ -62,7 +61,6 @@ async def test_resources_and_prompts_are_listed(app, catalog) -> None:
 
 
 async def test_missing_bearer_is_rejected(app) -> None:
-    # the auth middleware short-circuits before the MCP protocol, so initialize() fails
     with pytest.raises(Exception):  # noqa: B017 - any transport/protocol error is acceptable
         async with (
             _session(app, token="wrong-token") as (read, write, _),

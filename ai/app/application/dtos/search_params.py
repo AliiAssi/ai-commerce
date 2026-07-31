@@ -4,8 +4,6 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-# Field descriptions double as LLM-facing tool schema docs — write them for the model.
-
 
 class ProductSearchParams(BaseModel):
     query: str | None = Field(

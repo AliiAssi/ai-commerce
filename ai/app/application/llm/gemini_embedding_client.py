@@ -14,29 +14,13 @@ from app.application.llm.iembedding_client import (
 )
 from app.core.config import Settings
 
-# Gemini's own wire format: one request object per text, each carrying its own taskType, posted
-# to a `:batchEmbedContents` method on the model itself. Nothing about this shape resembles the
-# OpenAI-compatible adapter beside it, which is the point of §18's "no provider's wire format may
-# leak past IEmbeddingClient".
 _DOCUMENT_TASK = "RETRIEVAL_DOCUMENT"
 _QUERY_TASK = "RETRIEVAL_QUERY"
 
-# The API returns 3072 dimensions by default and pgvector will not build an HNSW index above
-# 2000, so a width has to be requested rather than accepted. These models are trained with
-# Matryoshka representation learning, so a truncated vector is a usable vector rather than a
-# damaged one — measured at 8/8 cross-lingual rank-1 at 768, the same as at 1536.
 _MAX_INDEXABLE_DIMENSIONS = 2000
 
 
 class GeminiEmbeddingClient(IEmbeddingClient):
-    """Google's Generative Language embedding API.
-
-    Asymmetric by design: a document and a query are embedded with different task types, which is
-    what §18 means by "query/document instruction format applied identically at index time and
-    query time". The two methods exist so that distinction cannot be forgotten silently — getting
-    it wrong costs recall and nothing else notices.
-    """
-
     def __init__(self, settings: Settings, client: httpx.AsyncClient | None = None) -> None:
         self._model = settings.EMBEDDING_MODEL
         self._dimensions = settings.EMBEDDING_DIMENSIONS
@@ -89,8 +73,6 @@ class GeminiEmbeddingClient(IEmbeddingClient):
             response.raise_for_status()
             payload = response.json()
         except httpx.HTTPError as exc:
-            # Deliberately not the provider's message. §14.4 keeps keys and internals out of
-            # anything that reaches a log or an operator, and §12 turns this into a degradation.
             raise EmbeddingError(
                 f"embedding request failed ({exc.__class__.__name__})",
                 code=classify_http_error(exc),

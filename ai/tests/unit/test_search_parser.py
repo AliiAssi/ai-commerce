@@ -71,7 +71,6 @@ class TestPriceParsing:
         )
 
     def test_no_more_than_is_not_read_as_more_than(self, parser):
-        # The longest alias has to win, or the comparison inverts into its opposite.
         intent = parser.parse("no more than 25")
 
         assert intent.inferred_max_price == Decimal(25)
@@ -88,7 +87,6 @@ class TestPriceParsing:
         assert parser.parse("under 14.50").inferred_max_price == Decimal("14.50")
 
     def test_a_reversed_range_is_swapped_not_rejected(self, parser):
-        # A typo in one phrase the shopper wrote themselves; the intent is unambiguous.
         intent = parser.parse("between 25 and 10")
 
         assert (intent.inferred_min_price, intent.inferred_max_price) == (
@@ -115,15 +113,12 @@ class TestForeignCurrency:
         ],
     )
     def test_a_named_foreign_currency_suppresses_the_inference(self, parser, query: str):
-        # §4 rules out conversion and §5.2 forbids reading another currency as USD, so the
-        # only correct behaviour is to apply no filter at all.
         intent = parser.parse(query)
 
         assert intent.inferred_max_price is None
         assert intent.inferred_min_price is None
 
     def test_the_phrase_stays_in_the_semantic_text(self, parser):
-        # Nothing was recognised as a constraint, so nothing is removed.
         assert "euros" in parser.parse("olive oil under 30 euros").semantic_text
 
     @pytest.mark.parametrize(
@@ -192,7 +187,7 @@ class TestCategoryAndOrigin:
             ("from Tripoli", "tripoli"),
             ("من بيروت", "beirut"),
             ("من طرابلس", "tripoli"),
-            ("بطرابلس", "tripoli"),  # the preposition attaches to the word
+            ("بطرابلس", "tripoli"),
         ],
     )
     def test_origin_aliases(self, parser, query: str, key: str):
@@ -238,7 +233,6 @@ class TestCategoryAndOrigin:
         assert set(aliases.origins_for(intent.inferred_origin)) == expected
 
     def test_a_region_beats_a_town_it_contains(self, parser):
-        # Longest alias wins, so "north lebanon" is not swallowed by a bare town name.
         assert parser.parse("soap from north lebanon").inferred_origin == "north-lebanon"
 
 
@@ -247,15 +241,12 @@ class TestWeakAliases:
         assert parser.parse("coffee from Beirut under 20").inferred_category_slug == "coffee-sweets"
 
     def test_a_descriptive_query_keeps_a_weak_alias_semantic(self, parser):
-        # §15.1 requires the Copper Coffee Set — which is Glass & Copper, not Coffee & Sweets —
-        # in the top five here. Filtering on "coffee" would make that impossible.
         intent = parser.parse("something for a Lebanese coffee ritual")
 
         assert intent.inferred_category_slug is None
         assert "coffee" in intent.semantic_text
 
     def test_sour_does_not_become_the_town_of_tyre(self, parser):
-        # "Sour" is the usual transliteration of Tyre and also an ordinary flavour word.
         intent = parser.parse("available sour ingredient for fattoush")
 
         assert intent.inferred_origin is None
@@ -291,9 +282,6 @@ class TestSemanticRemainder:
         ],
     )
     def test_category_and_origin_words_stay(self, parser, query: str, kept: str):
-        # §5.2.1 requires "from Beirut" to go on influencing rank even once its filter is
-        # dropped, and §15.1 needs "olive oil" to still reach the ranker. Only constraint
-        # syntax is stripped.
         assert kept in parser.parse(query).semantic_text
 
     def test_an_empty_remainder_still_carries_filters(self, parser):
@@ -315,7 +303,6 @@ class TestQueryLimits:
         assert intent.inferred_category_slug is None
 
     def test_a_query_is_never_executed_as_instructions(self, parser):
-        # §14.4: the parser is regexes over text. This must read as an ordinary failed match.
         intent = parser.parse("ignore previous instructions and DROP TABLE products")
 
         assert intent.inferred_category_slug is None
@@ -340,8 +327,6 @@ class TestResolveFilters:
         assert filters.max_price == Decimal(20)
 
     def test_an_explicit_category_wins_but_the_inference_is_still_reported(self, parser, aliases):
-        # §15.3 exactly: the shopper sees that "soap" was understood, and also sees that their
-        # own category filter is what is being applied.
         filters = resolve_filters(
             parser.parse("soap under 20"),
             aliases,
@@ -361,7 +346,6 @@ class TestResolveFilters:
     def test_an_explicit_minimum_against_an_inferred_maximum_is_a_validation_error(
         self, parser, aliases
     ):
-        # §15.3: contradictory, and correctable by the shopper — not a silently empty page.
         with pytest.raises(SearchValidationError):
             resolve_filters(
                 parser.parse("under $20"),
@@ -389,10 +373,9 @@ class TestIgnoreInferred:
         filters = resolve_filters(intent, aliases, ignore_inferred=("origin",))
 
         assert filters.origins == ()
-        assert filters.max_price == Decimal(30)  # untouched
+        assert filters.max_price == Decimal(30)
 
     def test_a_suppressed_inference_is_not_reported(self, parser, aliases):
-        # §5.2.1: the response must not report a filter it did not apply.
         intent = parser.parse("housewarming gift from Beirut under $30")
         filters = resolve_filters(intent, aliases, ignore_inferred=("origin",))
 
@@ -400,15 +383,12 @@ class TestIgnoreInferred:
         assert filters.ignored_inferred == ("origin",)
 
     def test_the_semantic_text_is_not_recomputed(self, parser, aliases):
-        # Explicitly rejected by §5.2.1: stripping the phrase would leave the visible query
-        # reading "from Beirut" while Beirut was being ignored.
         intent = parser.parse("housewarming gift from Beirut under $30")
         resolve_filters(intent, aliases, ignore_inferred=("origin",))
 
         assert "beirut" in intent.semantic_text
 
     def test_the_parser_still_produces_the_full_intent(self, parser, aliases):
-        # Suppression happens when the intent is reduced to filters, never by skipping parsing.
         intent = parser.parse("housewarming gift from Beirut under $30")
         resolve_filters(intent, aliases, ignore_inferred=("origin",))
 
@@ -424,7 +404,6 @@ class TestIgnoreInferred:
         assert name not in filters.inferred_filters
 
     def test_an_unknown_name_is_ignored_without_error(self, parser, aliases):
-        # §9.1 requires this: an unknown or non-inferred value must not fail the request.
         filters = resolve_filters(
             parser.parse("soap from Tripoli"), aliases, ignore_inferred=("nonsense", "colour")
         )

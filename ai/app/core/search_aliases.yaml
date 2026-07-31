@@ -1,40 +1,5 @@
-
-
 version: 1
 
-# BEIT search lexicon — English and Arabic aliases for every deterministic filter.
-#
-# §6 requires this to be data rather than regular-expression literals scattered across the
-# parser, and requires it to be versioned: `version` above is recorded on every parsed intent
-# and in search analytics, so a ranking change is always attributable to a lexicon revision.
-#
-# Aliases are written in ordinary orthography. The loader folds them the same way it folds
-# incoming queries (hamza seats, ya forms, ta marbuta, diacritics), so `أقل من` here matches
-# `اقل من` typed by a shopper, and neither needs a variant entry. Arabic clitics are handled by
-# the matcher, so `طرابلس` also matches `بطرابلس`.
-#
-# STRONG vs WEAK
-# --------------
-# A strong alias names the thing itself: "ceramics", "soap", "طرابلس". Matching one is enough
-# to apply a filter.
-#
-# A weak alias is a word that names the category in some queries and a material or an object in
-# others. "coffee" means the Coffee & Sweets category in `coffee from Beirut under 20`, but in
-# `something for a Lebanese coffee ritual` it describes a use, and filtering to that category
-# would hide the Copper Coffee Set — which §15.1 requires in the top five. So a weak alias
-# applies its filter only when the rest of the query is short enough to be filter-like, per
-# §5.2's rule that ambiguous words stay in the semantic text instead of becoming a hidden
-# filter.
-#
-# Nothing here is stripped from the semantic text. Only price, stock and sort phrases are
-# removed as constraint syntax; a category or origin word is descriptive and keeps earning its
-# rank — §5.2.1 requires "from Beirut" to go on influencing order even once the Beirut filter
-# itself has been dropped.
-
-# Calibrated against §15, not picked round. At 2, `something for a Lebanese coffee ritual`
-# reduces to two content tokens ("lebanese", "ritual") and would wrongly filter to Coffee &
-# Sweets, hiding the Copper Coffee Set. At 1, that query stays semantic while `coffee from
-# Beirut under 20` — one token past the alias — still filters.
 weak_alias_max_extra_tokens: 1
 
 categories:
@@ -110,17 +75,7 @@ categories:
       en: [glass, copper, brass]
       ar: [زجاج, نحاس]
 
-# Origins.
-#
-# `origins` lists the literal strings stored in products.origin. The catalog spells the same
-# town two ways — "Tripoli" and "Tripoli, North Lebanon" — which is exactly the hierarchy §6
-# calls out, and is why a place owns a list rather than a single value. Startup validation
-# fails if any string here is absent from the catalog, or if any catalog origin is unclaimed.
-#
-# `children` builds the region hierarchy: a region has no origins of its own and resolves to the
-# union of its members, so "North Lebanon" reaches Koura, Zgharta, Bcharre, Tripoli and Akkar.
 places:
-  # ---- localities -------------------------------------------------------------------------
   akkar:
     label: Akkar
     origins: ["Akkar"]
@@ -156,8 +111,6 @@ places:
       en: [beit chabab, beit chebab, bayt shabab]
       ar: [بيت شباب]
 
-  # No aliases of its own: "Bekaa Valley" as a phrase resolves to the region below, which
-  # already contains this origin. Declared so the origin string has an owner.
   bekaa-valley:
     label: Bekaa Valley
     origins: ["Bekaa Valley"]
@@ -170,7 +123,6 @@ places:
       en: [chouf, shouf, el chouf]
       ar: [الشوف]
     weak:
-      # Bare شوف is the Levantine imperative "look" as often as it is the district.
       ar: [شوف]
 
   deir-el-qamar:
@@ -231,7 +183,6 @@ places:
 
   tripoli:
     label: Tripoli
-    # Both spellings live in the catalog; §6 requires "Tripoli" to reach both.
     origins: ["Tripoli", "Tripoli, North Lebanon"]
     strong:
       en: [tripoli, trablous]
@@ -244,9 +195,6 @@ places:
       en: [tyre]
       ar: [صور لبنان]
     weak:
-      # "Sour" is the usual transliteration of the town, and also the flavour word that carries
-      # `available sour ingredient for fattoush` in §15.1. صور is likewise the plural of
-      # "picture". All three only filter when the query is short enough to be a place lookup.
       en: [sour, sur]
       ar: [صور]
 
@@ -264,7 +212,6 @@ places:
       en: [zouk mikael, zouk mikayel, zouk mosbeh, zouk]
       ar: [ذوق مكايل, زوق مكايل, الذوق]
 
-  # ---- regions ----------------------------------------------------------------------------
   north-lebanon:
     label: North Lebanon
     children: [tripoli, koura, zgharta, bcharre, akkar]
@@ -293,8 +240,6 @@ places:
       en: [bekaa, beqaa, bekaa valley, beqaa valley, the bekaa, bequaa]
       ar: [البقاع, بقاع, سهل البقاع]
 
-# Price comparators. A number alone is never a constraint — §5.2 permits a bare number to be read
-# as USD only inside an otherwise clear budget phrase, which is what these anchor.
 price:
   max:
     en:
@@ -349,8 +294,6 @@ price:
         لا يقل عن,
         ابتداء من,
       ]
-  # {a} and {b} are the two bounds. Whitespace in a template is optional when matching, which is
-  # what lets the Arabic conjunction attach directly to its number: "بين ١٠ و٢٥".
   range:
     - between {a} and {b}
     - from {a} to {b}
@@ -359,9 +302,6 @@ price:
     - من {a} إلى {b}
     - من {a} حتى {b}
 
-# §4 rules out currency conversion, and §5.2 forbids silently reading another currency as USD.
-# Finding one of these beside a number suppresses that price inference outright: the number
-# stays in the semantic text and no filter is applied.
 foreign_currencies:
   en:
     [

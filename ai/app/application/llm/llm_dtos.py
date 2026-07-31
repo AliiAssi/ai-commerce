@@ -9,7 +9,7 @@ class LLMMessageDTO:
     role: Literal["system", "user", "assistant", "tool"]
     content: str
     tool_calls: list[LLMToolCallDTO] = field(default_factory=list)
-    tool_name: str | None = None  # set on role="tool" results
+    tool_name: str | None = None
 
 
 @dataclass
@@ -35,6 +35,6 @@ class LLMReplyDTO:
 @dataclass
 class LLMStreamEventDTO:
     type: Literal["token", "tool_call", "done"]
-    text: str | None = None  # token events
-    tool_call: LLMToolCallDTO | None = None  # tool_call events
-    usage: LLMUsageDTO | None = None  # done events
+    text: str | None = None
+    tool_call: LLMToolCallDTO | None = None
+    usage: LLMUsageDTO | None = None

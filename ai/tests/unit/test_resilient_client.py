@@ -23,7 +23,6 @@ def _settings() -> Settings:
     )
 
 
-# an inner client whose chat()/stream() behavior is scripted per attempt
 class ScriptedInner(ILLMClient):
     def __init__(self, chat_outcomes=None, stream_outcomes=None) -> None:
         self._chat = list(chat_outcomes or [])

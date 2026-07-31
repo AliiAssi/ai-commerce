@@ -10,8 +10,6 @@ from app.core.container import container
 from app.core.logging import setup_logging
 from app.core.registry import configure
 
-# A drain of a 10,000-product catalog at the default batch size is well under this; it exists so
-# a bug that stopped jobs being completed ends the command instead of spinning inside it.
 _MAX_BATCHES = 5_000
 
 
@@ -45,9 +43,6 @@ def _parser() -> argparse.ArgumentParser:
 
 async def _enqueue(service: IIndexService, args: argparse.Namespace) -> int:
     if args.product_ids:
-        # An operator naming a product is explicitly asking for a retry, so this resets attempts
-        # where the sweep deliberately does not — the sweep would otherwise turn a permanently
-        # failing product into a loop no attempt cap could stop.
         return await service.enqueue(args.product_ids, reset=True)
     if args.all:
         return await service.enqueue_all_active(reset=True)
@@ -96,18 +91,13 @@ async def run(argv: list[str] | None = None) -> int:
         print(f"failed:     {report.failed} (this run)")
         print(f"pending:    {pending} job(s) left in the queue")
         print(f"coverage:   {coverage.documents}/{coverage.active_products} active products")
-        # Reported per slot rather than folded into `indexed`, because a run can store every
-        # document while an embedding provider is down — and "46 indexed" alone would read as a
-        # complete success when the semantic leg still has nothing to read.
         for slot, embedded in sorted(coverage.embedded.items()):
             print(f"  vectors:  {embedded}/{coverage.active_products} ({slot})")
         for job in failed:
-            # §11 wants permanent failures reported, and §10.3 wants them reported as codes.
             print(
                 f"  permanent failure: product {job.product_id} "
                 f"after {job.attempts} attempt(s): {job.last_error_code}"
             )
-        # A non-zero exit so a deploy step or cron wrapper notices, without hiding the report.
         return 1 if failed else 0
     finally:
         await container.engine.dispose()

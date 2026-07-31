@@ -30,7 +30,7 @@ class ResilientLLMClient(ILLMClient):
                     return await self._inner.chat(messages, tools)
             except (LLMUnavailableError, TimeoutError) as exc:
                 await self._maybe_retry(exc, attempt)
-        raise LLMUnavailableError("Ollama Cloud unavailable")  # unreachable
+        raise LLMUnavailableError("Ollama Cloud unavailable")
 
     async def stream(
         self, messages: list[LLMMessageDTO], tools: list[dict[str, Any]] | None = None
@@ -43,7 +43,6 @@ class ResilientLLMClient(ILLMClient):
                     yield event
                 return
             except (LLMUnavailableError, TimeoutError) as exc:
-                # Tokens already reached the caller, so the stream can't be restarted.
                 if yielded:
                     raise _as_unavailable(exc) from exc
                 await self._maybe_retry(exc, attempt)

@@ -15,21 +15,14 @@ from app.application.search.normalizer import fold_for_matching, normalize, toke
 from app.core.exceptions import AppError
 from app.core.search_aliases import NUMBER_PATTERN, Alias, AliasLibrary
 
-# The number a comparator governs, anchored so it must follow the phrase directly.
 _TRAILING_NUMBER = re.compile(rf"\s*{NUMBER_PATTERN}")
 
 PARSER_VERSION = "1"
 
 MAX_QUERY_LENGTH = 200
 
-# How far either side of a matched price phrase to look for a currency word. Wide enough to
-# catch "under 30 euros" and "under €30", narrow enough that "euros" mentioned at the other end
-# of a long query does not suppress an unrelated budget.
 _CURRENCY_WINDOW = 12
 
-# Words that carry no descriptive weight, so they should not count against a weak alias's
-# confidence budget. Kept small on purpose: this is a tie-breaker, not a stopword list for
-# retrieval.
 _STOPWORDS = frozenset(
     {
         "a", "an", "the", "for", "of", "and", "or", "with", "in", "on", "to", "from", "at",
@@ -40,8 +33,6 @@ _STOPWORDS = frozenset(
 
 
 class SearchValidationError(AppError):
-    """A constraint the shopper can see and correct — §5.2's contradictory range."""
-
     status_code = 422
     code = "invalid_search"
 
@@ -65,12 +56,6 @@ def _decimal(raw: str) -> Decimal | None:
 
 
 class IntentParser:
-    """Turns a raw query into a SearchIntent. Pure apart from the injected lexicon.
-
-    §14.4 forbids any LLM or tool execution here: a malicious query is text, and every rule
-    below is a regex over that text.
-    """
-
     def __init__(self, aliases: AliasLibrary) -> None:
         self._aliases = aliases
 
@@ -78,8 +63,6 @@ class IntentParser:
         query = normalize(raw[:MAX_QUERY_LENGTH])
         folded = fold_for_matching(query.normalized)
 
-        # Spans consumed by constraint syntax. Everything matched here is removed from the
-        # semantic text; category and origin matches are recorded but leave the text alone.
         taken: list[_Span] = []
 
         min_price, max_price = self._parse_prices(folded, taken)
@@ -90,8 +73,6 @@ class IntentParser:
         category_slug = self._parse_category(folded, semantic_text)
         origin_key = self._parse_origin(folded, semantic_text)
 
-        # A range the shopper stated themselves is correctable at the source, so it is worth
-        # rejecting rather than quietly swapping the bounds.
         if min_price is not None and max_price is not None and min_price > max_price:
             raise SearchValidationError(
                 f"The minimum price ({min_price}) is higher than the maximum ({max_price}).",
@@ -113,11 +94,7 @@ class IntentParser:
             lexicon_version=self._aliases.version,
         )
 
-    # ---- price ---------------------------------------------------------------------------
-
     def _parse_prices(self, text: str, taken: list[_Span]) -> tuple[Decimal | None, Decimal | None]:
-        # Ranges first: "between 10 and 25" contains a bare number that the min matcher would
-        # otherwise claim.
         for pattern in self._aliases.price.range_patterns:
             for match in pattern.finditer(text):
                 span = _Span(*match.span())
@@ -127,7 +104,6 @@ class IntentParser:
                 if low is None or high is None:
                     continue
                 taken.append(span)
-                # "between 25 and 10" is a typo, not a validation failure worth blocking on.
                 return (low, high) if low <= high else (high, low)
 
         max_price = self._bounded_price(text, self._aliases.price.max_aliases, taken)
@@ -137,8 +113,6 @@ class IntentParser:
     def _bounded_price(
         self, text: str, aliases: tuple[Alias, ...], taken: list[_Span]
     ) -> Decimal | None:
-        # Longest alias first so "no more than" is not consumed by "more than", which would
-        # invert the comparison.
         for alias in sorted(aliases, key=lambda a: len(a.phrase), reverse=True):
             for match in alias.pattern.finditer(text):
                 number = _TRAILING_NUMBER.match(text, match.end())
@@ -157,8 +131,6 @@ class IntentParser:
     def _names_foreign_currency(self, text: str, span: _Span) -> bool:
         window = text[max(0, span.start - _CURRENCY_WINDOW) : span.end + _CURRENCY_WINDOW]
         return self._aliases.price.currency_pattern.search(window) is not None
-
-    # ---- availability and sort -------------------------------------------------------------
 
     def _parse_availability(self, text: str, taken: list[_Span]) -> bool:
         return self._first_match(text, self._aliases.availability, taken) is not None
@@ -183,8 +155,6 @@ class IntentParser:
             return span
         return None
 
-    # ---- category and origin ---------------------------------------------------------------
-
     def _parse_category(self, text: str, semantic_text: str) -> str | None:
         best: tuple[int, str] | None = None
         for slug, category in self._aliases.categories.items():
@@ -202,12 +172,6 @@ class IntentParser:
         return None if best is None else best[1]
 
     def _best_alias(self, text: str, semantic_text: str, aliases: tuple[Alias, ...]) -> int | None:
-        """Length of the longest applicable alias, or None if none applies.
-
-        Length is the tie-break between overlapping entries: "north lebanon" must beat a bare
-        town name, and "bekaa valley" must resolve to the region rather than the single origin
-        that shares its spelling.
-        """
         best: int | None = None
         for alias in aliases:
             if alias.pattern.search(text) is None:
@@ -219,12 +183,6 @@ class IntentParser:
         return best
 
     def _weak_alias_applies(self, alias: Alias, semantic_text: str) -> bool:
-        """A weak alias filters only when the query is short enough to be filter-like.
-
-        `coffee from Beirut under 20` is a filter expressed in words; `something for a Lebanese
-        coffee ritual` is a description that happens to contain the word. Counting the content
-        tokens the alias does not cover separates the two without a model.
-        """
         alias_tokens = set(tokenize(alias.phrase))
         extra = [
             token
@@ -232,8 +190,6 @@ class IntentParser:
             if token not in alias_tokens and token not in _STOPWORDS and not token.isdigit()
         ]
         return len(extra) <= self._aliases.weak_alias_max_extra_tokens
-
-    # ---- semantic remainder ------------------------------------------------------------------
 
     @staticmethod
     def _strip(text: str, taken: list[_Span]) -> str:
@@ -255,19 +211,12 @@ def resolve_filters(
     explicit: ExplicitFilters | None = None,
     ignore_inferred: tuple[str, ...] = (),
 ) -> EffectiveFilters:
-    """Reduce a parsed intent plus explicit filters to what the query will actually apply.
-
-    Precedence is fixed by §5.2: an explicit filter always wins over an inferred one. An
-    `ignore_inferred` name suppresses only that inference — §5.2.1 — and an unknown or
-    not-inferred name is ignored without error, per §9.1.
-    """
     explicit = explicit or ExplicitFilters()
     suppressed = {name for name in ignore_inferred if name in INFERRED_NAMES}
 
     inferred: dict[str, str] = {}
 
     def take(name: str, value):
-        """Record an inference unless suppressed, and return it for use as a filter."""
         if value is None or name in suppressed:
             return None
         inferred[name] = str(value)
@@ -280,7 +229,6 @@ def resolve_filters(
     in_stock = take("in_stock_only", intent.inferred_in_stock_only)
     sort = take("sort", intent.inferred_sort)
 
-    # Report the place's display name, not its key: "Beirut", not "beirut" (§9.2's example).
     if "origin" in inferred:
         inferred["origin"] = aliases.label_for_place(inferred["origin"])
     if "category" in inferred:
@@ -294,16 +242,12 @@ def resolve_filters(
         explicit.in_stock_only if explicit.in_stock_only is not None else bool(in_stock)
     )
 
-    # §15.3: an explicit minimum against an inferred maximum is still a contradiction the
-    # shopper can see and fix, so it fails here rather than returning a silently empty page.
     if effective_min is not None and effective_max is not None and effective_min > effective_max:
         raise SearchValidationError(
             f"The minimum price ({effective_min}) is higher than the maximum ({effective_max}).",
             details={"min_price": str(effective_min), "max_price": str(effective_max)},
         )
 
-    # §5.3: relevance is the default whenever there is a query, and an explicit sort overrides
-    # both the inferred one and that default.
     if explicit.sort is not None:
         effective_sort: SortKey = explicit.sort
     elif sort is not None:

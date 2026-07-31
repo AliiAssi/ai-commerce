@@ -60,7 +60,13 @@ class Settings(DatabaseSettings):
 
     #  Smart search
     SMART_SEARCH_ROUTING_ENABLED: bool = False
-    SEARCH_TIMEOUT_SECONDS: float = Field(default=3.0, gt=0)
+    # The outermost limit on a storefront search, and the only one that is actually enforced end
+    # to end: when this expires the gateway returns None and web serves its own lexical results,
+    # which is a real quality drop rather than a formality. It therefore has to exceed everything
+    # the AI service may spend — query embedding (2 s cap, ~434 ms p50) plus retrieval plus
+    # RERANKER_TIMEOUT_SECONDS, which is 5 s. Set below that and raising the reranker's budget
+    # buys nothing: the gateway would abandon the request before the reranker ever answered.
+    SEARCH_TIMEOUT_SECONDS: float = Field(default=8.0, gt=0)
 
     @model_validator(mode="after")
     def _check_smart_search(self) -> Settings:

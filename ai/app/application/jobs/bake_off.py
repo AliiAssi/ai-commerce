@@ -26,18 +26,6 @@ from app.core.search_aliases import AliasLibrary
 from app.infrastructure.database.store_tables import categories, products
 from app.infrastructure.repositories.search_repository import filtered_products
 
-# §18.1 step 3: embed the live catalog with each candidate and score it against the fixed corpus.
-#
-# Scored in memory rather than through pgvector, deliberately. §18.1 step 6 says to fix
-# EMBEDDING_DIMENSIONS and build the HNSW index only *after* a winner is chosen, so the bake-off
-# cannot depend on a schema that the bake-off's own outcome decides. Cosine over 46 vectors in
-# Python is exact — no approximate index, no recall loss from ef_search — which makes this a
-# measurement of the model rather than of the index built on it.
-#
-# What this measures is the SEMANTIC LEG ALONE, inside each case's deterministic filters. It is
-# not comparable to the phase-4 baseline, which is lexical+trigram RRF; phase 6 measures the
-# fused system. What it is comparable to is the same number for another candidate.
-
 _NDCG_K = 10
 
 
@@ -53,7 +41,6 @@ class Candidate:
 
 
 def _client(candidate: Candidate, settings: Settings) -> IEmbeddingClient:
-    """Build a real adapter, exactly as the service would (§18.1 step 1)."""
     overrides = {
         "EMBEDDING_PROVIDER": candidate.provider,
         "EMBEDDING_MODEL": candidate.model,
@@ -115,11 +102,6 @@ async def _catalog() -> list[CatalogRowDTO]:
 async def _eligible_ids(
     case: RelevanceCase, parser: IntentParser, aliases: AliasLibrary
 ) -> set[int]:
-    """The products the case's deterministic filters leave standing.
-
-    The semantic leg never overrules a filter (§7.3), so scoring it against the whole catalog
-    would credit or blame the model for work SQL already did.
-    """
     from app.application.dtos.search_dto import ExplicitFilters
 
     intent = parser.parse(case.query)
@@ -134,13 +116,6 @@ async def _eligible_ids(
 
 
 async def _embed_query_paced(client: IEmbeddingClient, query: str):
-    """One query embedding, retrying a rate limit rather than abandoning the run.
-
-    A hundred-case corpus is a hundred sequential calls, and the free tier starts refusing
-    part-way through — which failed a whole bake-off after it had already paid for the document
-    batch. Only `retryable` codes wait; an unauthorized key or a malformed request fails fast,
-    because retrying either just costs time to reach the same answer.
-    """
     delay = 2.0
     for attempt in range(5):
         try:
@@ -175,9 +150,6 @@ async def score_candidate(candidate: Candidate, settings: Settings, corpus) -> d
         if case.expect_error or case.allow_empty:
             continue
         if case.sort or case.expect_filters.get("sort"):
-            # An explicit sort owns the ordering (§7.5), so cosine similarity cannot be scored
-            # against it. `en-expensive-first` failed here purely because this harness ranks by
-            # similarity and the case is about price_desc — a harness limit, not a model one.
             continue
         if not case.first and not case.required:
             continue

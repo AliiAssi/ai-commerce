@@ -17,8 +17,6 @@ _SOURCES = ("spec", "draft")
 _LANGUAGES = ("en", "ar", "mixed")
 _DEFAULT_TOP_K = 5
 
-# Every key a case may carry. Unknown keys are an error rather than a shrug: a typo in `required`
-# would otherwise silently drop an assertion and the corpus would report a gate it never checked.
 _CASE_KEYS = frozenset(
     {
         "id",
@@ -47,14 +45,11 @@ _FILTER_KEYS = frozenset(
 )
 
 
-class CorpusError(Exception):
-    """The relevance corpus is unusable."""
+class CorpusError(Exception): ...
 
 
 @dataclass(frozen=True, slots=True)
 class RelevanceCase:
-    """One judged query. Products are named, never id'd — see the corpus header for why."""
-
     id: str
     query: str
     language: CaseLanguage
@@ -79,11 +74,6 @@ class RelevanceCase:
 
     @property
     def is_gate(self) -> bool:
-        """Whether a failure here fails a release.
-
-        Draft cases are reported but never gate. They were generated rather than judged, and a
-        corpus that fails a release on an unreviewed expectation teaches everyone to ignore it.
-        """
         return self.source == "spec"
 
     @property
@@ -187,7 +177,6 @@ def _build_case(raw: Any, *, index: int) -> RelevanceCase:
         note=str(raw["note"]).strip() if raw.get("note") else None,
     )
 
-    # A case that asserts nothing passes for free and hides the fact that it does.
     asserts = (
         case.first
         or case.not_first

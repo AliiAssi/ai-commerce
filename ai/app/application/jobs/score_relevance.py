@@ -65,7 +65,6 @@ def _print(report: RelevanceReportDTO, *, show_failures: bool) -> None:
             for line in result.detail:
                 print(f"       {line}")
         for result in drafts_failing:
-            # Drafts never gate — they are reported so the reviewed set can grow from evidence.
             print(f"  draft-miss {result.case_id}  ({result.language})  {result.query}")
             for line in result.detail:
                 print(f"       {line}")
@@ -94,9 +93,6 @@ async def run(argv: list[str] | None = None) -> int:
     assert container.engine is not None
 
     try:
-        # Settle the coverage gate first. It is process state normally refreshed by the index
-        # worker, and this process has no worker — without this every case would silently run on
-        # §12's step 4 while the report was labelled as something else.
         await container.resolve(IIndexService).refresh_coverage()
         report = await container.resolve(IRelevanceService).score(
             label=args.label, include_drafts=not args.gates_only

@@ -50,7 +50,6 @@ def setup_logging(environment: str) -> None:
     root.handlers[:] = [handler]
 
 
-# Logged per LLM call so Ollama Cloud consumption stays auditable.
 def log_llm_usage(
     model: str, prompt_tokens: int, completion_tokens: int, duration_ms: float
 ) -> None:

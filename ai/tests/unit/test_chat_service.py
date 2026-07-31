@@ -37,7 +37,6 @@ def _settings(**overrides) -> Settings:
     return Settings(**base)
 
 
-# an LLM that always fails, to exercise the graceful-error path
 class BrokenLLM:
     async def chat(self, messages, tools=None):
         raise LLMUnavailableError("down", retryable=True)
@@ -118,7 +117,6 @@ async def test_order_tool_uses_session_email_not_model_supplied() -> None:
     orders = FakeOrderReadRepository()
     mine = orders.seed("me@test.com")
     orders.seed("other@test.com")
-    # the model tries another customer's email; the loop must override it with the session's
     llm = FakeLLMClient(
         [tool_turn("get_order", order_id=mine.id, user_email="other@test.com"), answer_turn("ok")]
     )
@@ -127,7 +125,7 @@ async def test_order_tool_uses_session_email_not_model_supplied() -> None:
 
     events = await _collect(service, session, "where is my order")
     assert any(e.type == "tool" and e.name == "get_order" for e in events)
-    assert events[-1].type == "done"  # no leak, no error
+    assert events[-1].type == "done"
 
 
 async def test_llm_unavailable_yields_single_error() -> None:
@@ -138,13 +136,12 @@ async def test_llm_unavailable_yields_single_error() -> None:
 
     assert len(events) == 1
     assert events[0].type == "error"
-    assert await chat.count_messages(session.id) == 0  # nothing persisted on failure
+    assert await chat.count_messages(session.id) == 0
 
 
 async def test_loop_cap_yields_error() -> None:
     products = FakeProductReadRepository()
     products.seed("Alpha Tent")
-    # always asks for a tool, never answers -> exceeds MAX_TOOL_ITERATIONS
     llm = FakeLLMClient([tool_turn("search_products", query="tent") for _ in range(10)])
     service, _ = _build(llm, settings=_settings(MAX_TOOL_ITERATIONS=2), products=products)
     session = await service.resolve_session(None, None)
@@ -188,10 +185,9 @@ async def test_reusing_session_under_different_email_mints_new_session() -> None
     service, _ = _build(FakeLLMClient([]), chat=chat)
 
     alice = await service.resolve_session(None, "alice@test.com")
-    # a different signed-in customer presents Alice's session id (stale/shared browser)
     bob = await service.resolve_session(alice.id, "bob@test.com")
 
-    assert bob.id != alice.id  # never bound to Alice's history
+    assert bob.id != alice.id
     assert bob.user_email == "bob@test.com"
 
 
@@ -200,7 +196,6 @@ async def test_reusing_own_session_is_preserved() -> None:
     service, _ = _build(FakeLLMClient([]), chat=chat)
 
     first = await service.resolve_session(None, "alice@test.com")
-    # same customer, same id (casing/whitespace differences tolerated) -> same session
     again = await service.resolve_session(first.id, "  Alice@Test.com ")
 
     assert again.id == first.id

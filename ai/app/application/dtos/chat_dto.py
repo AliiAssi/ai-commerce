@@ -9,7 +9,7 @@ ChatEventType = Literal["token", "tool", "done", "error"]
 
 
 class ChatMessageDTO(BaseModel):
-    role: str  # "user" | "assistant" | "tool"
+    role: str
     content: str
     tool_calls: list[dict[str, Any]] | None = None
 
@@ -21,7 +21,7 @@ class ChatSessionDTO(BaseModel):
 
 class ChatStreamEventDTO(BaseModel):
     type: ChatEventType
-    text: str | None = None  # token events
-    name: str | None = None  # tool events
-    session_id: uuid.UUID | None = None  # done events
-    message: str | None = None  # error events
+    text: str | None = None
+    name: str | None = None
+    session_id: uuid.UUID | None = None
+    message: str | None = None

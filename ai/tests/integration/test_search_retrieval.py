@@ -13,27 +13,13 @@ from app.core.index_state import IndexCoverage
 from app.core.search_aliases import AliasLibrary
 from app.infrastructure.irepositories.isearch_repository import ISearchRepository
 
-# Retrieval against real PostgreSQL, over the real seeded catalog. The cases are drawn from the
-# §15 acceptance corpus, restricted to what a phase-1 lexical + trigram ranker can be held to:
-# no embedding model exists yet, so the Arabic cases here assert the deterministic filters they
-# resolve rather than the ranking §15 will require once one does (§2.1).
-
 pytestmark = pytest.mark.skipif(
     not os.environ.get("TEST_DATABASE_URL"), reason="TEST_DATABASE_URL not set"
 )
 
 
-# Every case below runs twice, once on each of §12's two lexical rungs.
-#
-# `catalog_vector` is step 4, web's generated products.search_vector. `documents` is step 3,
-# this service's own weighted documents, which phase 4 made the default whenever index coverage
-# allows. Both are live paths a shopper can land on — the second one degrades to the first
-# whenever coverage drops — so a corpus that only ever exercised one of them would leave the
-# other free to regress unnoticed. Running the same assertions against both is also what proves
-# the switch itself cost no relevance.
 @pytest.fixture(params=["catalog_vector", "documents"])
 async def search(request, app, beit_catalog):
-    """Run a query end to end and return (names in order, retrieval result)."""
     if request.param == "documents":
         service = container.resolve(IIndexService)
         await service.sweep()
@@ -67,16 +53,12 @@ class TestEnglishCorpus:
         names, result = await search("olive oil for frying under $25")
 
         assert names[0] == "Everyday Cooking Olive Oil"
-        # The finishing and first-press oils are both over $25 and must be filtered out, not
-        # merely outranked.
         assert "Koura Valley First Press" not in names
         assert result.total == len(names)
 
     async def test_a_descriptive_query_reaches_across_categories(self, search):
         names, _ = await search("something for a Lebanese coffee ritual")
 
-        # The Copper Coffee Set is in Glass & Copper. It is only reachable because "coffee" was
-        # left as semantic text instead of becoming a category filter.
         assert "Lebanese Coffee with Cardamom" in names[:5]
         assert "Copper Coffee Set" in names[:5]
 
@@ -88,8 +70,6 @@ class TestEnglishCorpus:
     async def test_an_origin_resolves_both_catalog_spellings(self, search):
         names, _ = await search("traditional soap from Tripoli")
 
-        # One soap is stored as "Tripoli, North Lebanon", the other as the same string; the
-        # place has to reach both spellings or one of them disappears.
         assert set(names) == {"Tripoli Olive Oil Soap", "Laurel and Olive Soap, aged nine months"}
 
     async def test_origin_and_price_together(self, search):
@@ -105,7 +85,6 @@ class TestEnglishCorpus:
         names, _ = await search("available sour ingredient for fattoush")
 
         assert names[0] == "Pomegranate Molasses"
-        # Sumac is relevant and sold out; the availability constraint is deterministic.
         assert "Single-Origin Sumac" not in names
 
     async def test_a_region_reaches_its_towns(self, search):
@@ -120,7 +99,6 @@ class TestEnglishCorpus:
         assert names[0] == "Baladi Extra Virgin Olive Oil"
 
     async def test_nonsense_returns_nothing(self, search):
-        # §15.1's no-result guard: no unrelated neighbours, and no falling back to a browse.
         names, result = await search("zzzznotathing")
 
         assert names == []
@@ -142,8 +120,6 @@ class TestTrigramLeg:
     async def test_transliteration_variants_still_find_the_product(
         self, search, query: str, expected: str
     ):
-        # The reason §7.2 has a trigram leg at all: full-text search misses these entirely
-        # because the shopper's spelling and the catalog's differ by a character or two.
         names, _ = await search(query)
 
         assert expected in names
@@ -163,9 +139,6 @@ class TestFiltersOnly:
         assert "Coarse Bulgur" in names
 
     async def test_an_arabic_query_still_applies_its_filters(self, search):
-        # No Arabic text exists in the catalog, so neither lexical nor trigram can match
-        # (§2.1). The deterministic filters are the whole answer until phase 6 adds vectors,
-        # and returning them beats returning nothing.
         names, _ = await search("صابون تقليدي من طرابلس")
 
         assert set(names) == {"Tripoli Olive Oil Soap", "Laurel and Olive Soap, aged nine months"}
@@ -182,7 +155,6 @@ class TestFiltersOnly:
         }
 
     async def test_an_unmatched_query_with_no_filters_stays_empty(self, search):
-        # The rule that keeps the constraint fallback from becoming "show everything".
         _, result = await search("zzzznotathing")
 
         assert result.total == 0
@@ -192,18 +164,17 @@ class TestSorting:
     async def test_an_explicit_sort_reorders_the_matched_set(self, search):
         names, result = await search("cheapest ceramics")
 
-        assert names[0] == "Terracotta Herb Pot"  # $18.00, the cheapest in the category
-        assert result.total == 6  # the whole category, not the whole catalog
+        assert names[0] == "Terracotta Herb Pot"
+        assert result.total == 6
 
     async def test_a_non_relevance_sort_does_not_widen_the_result_set(self, search):
         relevance, _ = await search("soap from Tripoli")
         by_price, _ = await search("soap from Tripoli", explicit=ExplicitFilters(sort="price_asc"))
 
         assert set(relevance) == set(by_price)
-        assert by_price[0] == "Tripoli Olive Oil Soap"  # $9.00
+        assert by_price[0] == "Tripoli Olive Oil Soap"
 
     async def test_out_of_stock_ranks_below_an_equally_relevant_in_stock_product(self, search):
-        # §5.3: visible by default, but it should not lead.
         names, _ = await search("copper")
         sold_out = names.index("Hammered Copper Rakwe")
 
@@ -244,7 +215,6 @@ class TestFilterPrecedence:
             "housewarming gift under $30 from Bcharre", ignore_inferred=("origin",)
         )
 
-        # §5.2.1: Bcharre products stop being exclusive but the phrase still ranks them.
         assert set(narrow) < set(wide)
 
     async def test_an_explicit_price_replaces_the_inferred_one(self, search):
@@ -252,7 +222,7 @@ class TestFilterPrecedence:
             "olive oil under $25", explicit=ExplicitFilters(max_price=Decimal(20))
         )
 
-        assert "Baladi Extra Virgin Olive Oil" not in names  # $28.00
+        assert "Baladi Extra Virgin Olive Oil" not in names
 
 
 class TestArchivedProducts:
@@ -268,7 +238,6 @@ class TestArchivedProducts:
 
 class TestCatalogTerms:
     async def test_the_shipped_lexicon_describes_the_live_catalog(self, app, beit_catalog):
-        # The same check main.py runs at startup, against real data rather than a fixture list.
         async with open_scope() as scope:
             terms = await scope.resolve(ISearchRepository).catalog_terms()
 

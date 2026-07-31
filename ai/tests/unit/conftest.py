@@ -16,7 +16,6 @@ from tests.unit.fakes import (
 )
 
 
-# a Scope stand-in that resolves interfaces straight from a dict of fakes (no DB)
 class FakeScope:
     def __init__(self, bindings: dict[type, Any]) -> None:
         self._bindings = bindings
@@ -25,7 +24,6 @@ class FakeScope:
         return self._bindings[interface]
 
 
-# build a registry whose tools run against in-memory fakes instead of a database
 def build_fake_registry(
     products: FakeProductReadRepository | None = None,
     orders: FakeOrderReadRepository | None = None,

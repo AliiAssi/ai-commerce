@@ -46,7 +46,6 @@ class FakeProductReadRepository(IProductReadRepository):
         self._products: list[ProductReadDTO] = []
         self._seq = 0
 
-    # test helper: append a product and return it
     def seed(
         self,
         name: str,
@@ -158,7 +157,6 @@ class FakeOrderReadRepository(IOrderReadRepository):
         self._orders: list[OrderReadDTO] = []
         self._seq = 0
 
-    # test helper: append an order for an email
     def seed(
         self,
         user_email: str,
@@ -204,7 +202,6 @@ class FakeReviewReadRepository(IReviewReadRepository):
     def __init__(self) -> None:
         self._by_product: dict[int, list[ReviewReadDTO]] = {}
 
-    # test helper: attach a review to a product
     def seed(self, product_id: int, *, rating: int = 5, text: str = "Great") -> None:
         self._by_product.setdefault(product_id, []).append(
             ReviewReadDTO(rating=rating, text=text, created_at=_EPOCH)
@@ -238,7 +235,6 @@ class FakeChatRepository(IChatRepository):
         self._messages.setdefault(session_id, []).extend(messages)
 
 
-# one scripted LLM turn: either tool calls to make, or a final text answer
 @dataclass
 class FakeTurn:
     text: str = ""
@@ -254,11 +250,9 @@ def answer_turn(text: str) -> FakeTurn:
 
 
 class FakeLLMClient(ILLMClient):
-    """Replays a scripted list of turns — no network, no real model."""
-
     def __init__(self, script: list[FakeTurn]) -> None:
         self._script = list(script)
-        self.calls: list[list[LLMMessageDTO]] = []  # messages seen per turn, for assertions
+        self.calls: list[list[LLMMessageDTO]] = []
 
     def _next(self, messages: list[LLMMessageDTO]) -> FakeTurn:
         self.calls.append(list(messages))
@@ -289,21 +283,6 @@ class FakeLLMClient(ILLMClient):
 
 
 class FakeEmbeddingClient(IEmbeddingClient):
-    """Deterministic vectors with real cosine structure, and no network.
-
-    **What this is and is not.** It hashes tokens into buckets and L2-normalizes, so two texts
-    that share words score high against each other and two that share none score near zero. That
-    is enough to exercise every mechanism the semantic leg has — that it runs, that it fuses,
-    that the similarity threshold cuts, that the right column is read — deterministically and in
-    CI, where there is no API key.
-
-    It is emphatically **not** a model. It has no cross-lingual behaviour at all: an Arabic query
-    shares no tokens with English catalog text, so it scores zero, which is the exact thing the
-    real model exists to fix. Relevance is therefore never measured here — that is
-    `score_relevance` against the live provider, and the numbers in SMART_SEARCH_PLAN.md come
-    from there. Asserting §15 recall against this fake would prove the fake.
-    """
-
     def __init__(
         self,
         *,
@@ -316,11 +295,7 @@ class FakeEmbeddingClient(IEmbeddingClient):
         self._model = model
         self._dimensions = dimensions
         self._fail_with = fail_with
-        # None means "fail for ever"; an int counts down, which is how a breaker recovering or a
-        # retry succeeding on the second attempt gets tested.
         self._fail_times = fail_times
-        # Returns a wrong width when set, so validated_batch's dimension check has something to
-        # catch that is not a mock assertion.
         self._width_override = width_override
         self.document_calls: list[list[str]] = []
         self.query_calls: list[str] = []
@@ -333,7 +308,6 @@ class FakeEmbeddingClient(IEmbeddingClient):
     def dimensions(self) -> int:
         return self._dimensions
 
-    # test helper: start or stop failing part-way through a scenario
     def set_failure(self, error: EmbeddingError | None, *, times: int | None = None) -> None:
         self._fail_with = error
         self._fail_times = times
@@ -354,8 +328,6 @@ class FakeEmbeddingClient(IEmbeddingClient):
             buckets[hash_token(token) % width] += 1.0
         norm = sum(value * value for value in buckets) ** 0.5
         if not norm:
-            # An all-zero vector has no cosine distance to anything; give it one stable direction
-            # so pgvector never has to divide by zero.
             buckets[0] = 1.0
             norm = 1.0
         return tuple(value / norm for value in buckets)
@@ -380,6 +352,4 @@ class FakeEmbeddingClient(IEmbeddingClient):
 
 
 def hash_token(token: str) -> int:
-    """A stable hash. Python's `hash()` is salted per process, which would make a fixture that
-    passes today fail tomorrow for no reason anyone could trace."""
     return zlib.crc32(token.encode("utf-8"))

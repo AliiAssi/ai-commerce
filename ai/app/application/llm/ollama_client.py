@@ -37,7 +37,7 @@ class OllamaClient(ILLMClient):
             "model": self._model,
             "messages": [_encode_message(m) for m in messages],
             "stream": stream,
-            "think": False,  # suppress qwen3-style reasoning tokens
+            "think": False,
             "options": {"num_predict": self._num_predict},
         }
         if tools:
@@ -104,9 +104,6 @@ class OllamaClient(ILLMClient):
             raise _status_error(exc) from exc
         except httpx.RequestError as exc:
             raise _transport_error(exc) from exc
-
-
-# Ollama wire-format helpers
 
 
 def _encode_message(message: LLMMessageDTO) -> dict[str, Any]:

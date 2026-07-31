@@ -6,7 +6,7 @@ from dataclasses import dataclass
 @dataclass(frozen=True)
 class ToolExecuted:
     name: str
-    source: str  # "chat" | "mcp"
+    source: str
     duration_ms: float
     ok: bool
 
