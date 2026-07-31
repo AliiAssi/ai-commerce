@@ -4,7 +4,6 @@ from app.application.events.bus import EventBus
 from app.application.events.handlers import register_handlers
 from app.application.iservices.ichat_service import IChatService
 from app.application.iservices.iindex_service import IIndexService
-from app.application.iservices.irelevance_service import IRelevanceService
 from app.application.iservices.isearch_service import ISearchService
 from app.application.llm.embedding_providers import EmbeddingProviders
 from app.application.llm.gemini_embedding_client import GeminiEmbeddingClient
@@ -22,7 +21,6 @@ from app.application.rerank.resilient_reranker import ResilientReranker
 from app.application.search.parser import IntentParser
 from app.application.services.chat_service import ChatService
 from app.application.services.index_service import IndexService
-from app.application.services.relevance_service import RelevanceService
 from app.application.services.search_service import SearchService
 from app.application.tools.bootstrap import build_tool_registry
 from app.application.tools.registry import ToolRegistry
@@ -30,7 +28,6 @@ from app.core.config import Settings
 from app.core.container import Container
 from app.core.index_state import IndexCoverage
 from app.core.prompts import PromptLibrary, load_prompts_or_exit
-from app.core.relevance import RelevanceCorpus, load_corpus_or_exit
 from app.core.search_aliases import AliasLibrary, load_aliases_or_exit
 from app.infrastructure.database.session import create_engine_and_sessionmaker
 from app.infrastructure.irepositories.ichat_repository import IChatRepository
@@ -144,11 +141,6 @@ def _build_reranker(settings: Settings) -> IReranker:
         slot="fallback",
     )
     return RerankerChain(primary, fallback)
-
-
-def configure_relevance(container: Container) -> None:
-    container.bind_instance(RelevanceCorpus, load_corpus_or_exit())
-    container.bind(IRelevanceService, RelevanceService, singleton=True)
 
 
 def configure(container: Container, settings: Settings) -> None:

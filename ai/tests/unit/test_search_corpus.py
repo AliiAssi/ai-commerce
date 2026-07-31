@@ -4,7 +4,7 @@ import textwrap
 
 import pytest
 
-from app.core.relevance import CorpusError, load_corpus
+from tests.support.relevance import CorpusError, load_corpus
 
 VALID = """
 version: 1

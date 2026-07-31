@@ -5,10 +5,10 @@ import os
 import pytest
 
 from app.application.iservices.iindex_service import IIndexService
-from app.application.iservices.irelevance_service import IRelevanceService
 from app.core.container import container
-from app.core.registry import configure_relevance
-from app.core.relevance import RelevanceCorpus
+from tests.support.irelevance_service import IRelevanceService
+from tests.support.relevance import RelevanceCorpus
+from tests.support.wiring import configure_relevance
 
 pytestmark = pytest.mark.skipif(
     not os.environ.get("TEST_DATABASE_URL"), reason="TEST_DATABASE_URL not set"

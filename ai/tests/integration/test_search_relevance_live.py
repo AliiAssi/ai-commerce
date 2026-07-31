@@ -5,14 +5,15 @@ import os
 import pytest
 
 from app.application.iservices.iindex_service import IIndexService
-from app.application.iservices.irelevance_service import IRelevanceService
 from app.application.iservices.isearch_service import ISearchService
 from app.application.llm.embedding_providers import EmbeddingProviders
 from app.application.services.index_service import IndexService
 from app.application.services.search_service import SearchService
 from app.core.config import Settings
 from app.core.container import container
-from app.core.registry import _build_embedding_providers, configure_relevance
+from app.core.registry import _build_embedding_providers
+from tests.support.irelevance_service import IRelevanceService
+from tests.support.wiring import configure_relevance
 
 pytestmark = [
     pytest.mark.skipif(not os.environ.get("TEST_DATABASE_URL"), reason="TEST_DATABASE_URL not set"),

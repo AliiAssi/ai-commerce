@@ -5,14 +5,15 @@ import asyncio
 import json
 import sys
 
-from app.application.dtos.relevance_dto import LanguageScoreDTO, RelevanceReportDTO
 from app.application.iservices.iindex_service import IIndexService
-from app.application.iservices.irelevance_service import IRelevanceService
 from app.core.config import load_settings_or_exit
 from app.core.container import container
 from app.core.logging import setup_logging
-from app.core.registry import configure, configure_relevance
-from app.core.relevance import load_corpus
+from app.core.registry import configure
+from tests.support.irelevance_service import IRelevanceService
+from tests.support.relevance import load_corpus
+from tests.support.relevance_dto import LanguageScoreDTO, RelevanceReportDTO
+from tests.support.wiring import configure_relevance
 
 HARD_SET = (
     "ar-tea",
