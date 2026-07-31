@@ -313,17 +313,6 @@ cases:
     top_k: 5
     note: DRAFT — needs a native reading. Expected to fail before embeddings exist.
 
-  - id: ar-soap-no-origin
-    query: صابون بزيت الزيتون
-    language: ar
-    source: draft
-    required: [Tripoli Olive Oil Soap]
-    top_k: 5
-    note: >-
-      DRAFT — needs a native reading. Deliberately carries no place name, so unlike
-      ar-tripoli-soap there is no filter to fall back on. This is the case that measures whether
-      embeddings actually bought cross-lingual retrieval.
-
   - id: ar-cushions
     query: وسادات قماش
     language: ar
@@ -368,7 +357,11 @@ cases:
     language: en
     source: draft
     expect_filters: {sort: price_desc}
-    first: Copper Serving Tray
+    first: Copper Coffee Set
+    note: >-
+      Corrected 2026-07-31. The case named Copper Serving Tray at $68 as the most expensive
+      copper item, but Copper Coffee Set is $76. The expectation was simply wrong and the sort
+      was always right.
 
   - id: en-in-stock-sumac
     query: sumac in stock
@@ -628,12 +621,17 @@ cases:
   - id: ar-olive-oil-soap-both
     query: صابون زيت الزيتون
     language: ar
-    source: draft
+    source: spec
+    section: "15.2"
     required: [Tripoli Olive Oil Soap, "Laurel and Olive Soap, aged nine months"]
     top_k: 5
     note: >-
-      Deliberately requires BOTH soaps, unlike ar-soap-no-origin which names only one and fails
-      on every model. If the reviewer agrees both are valid answers, this case replaces that one.
+      Reviewed 2026-07-31 and promoted. The phrasing is the idiomatic one, and both catalog soaps
+      are olive oil soaps, so requiring both is the only defensible expectation. It replaces
+      ar-soap-no-origin, which required one of the two arbitrarily and was deleted. Failing this
+      case is how the two-strong-alias collision was found: صابون and زيت الزيتون both match
+      strongly, and the longest-alias tie-break resolved the query to Olive Oil, a category
+      neither soap is in.
 
   - id: ar-tahini
     query: طحينة
@@ -731,6 +729,12 @@ cases:
     source: draft
     required: [Anise and Linden Tea]
     top_k: 3
+    note: >-
+      Reviewed 2026-07-31. The phrasing is natural and precise — يانسون is anise, and the catalog
+      sells Anise and Linden Tea — so the case is right and the system is wrong. It returns
+      nothing: cosine similarity is 0.593 against a 0.645 floor, and zzzznotathing scores 0.592
+      against the same catalog. Not promotable until retrieval can separate those two, which no
+      single threshold can. Kept as the clearest evidence of that limit.
 
   - id: ar-pistachios
     query: فستق محمص
@@ -783,7 +787,7 @@ cases:
     top_k: 4
 
   - id: ar-candle
-    query: شمعة شمع عسل
+    query: شمعة من شمع العسل
     language: ar
     source: draft
     required: [Beeswax and Olive Candle]
@@ -816,7 +820,10 @@ cases:
     source: draft
     top_k: 8
     required: [Beeswax and Olive Candle]
-    note: DRAFT and deliberately loose — several products would satisfy this. Review the choice.
+    note: >-
+      Reviewed 2026-07-31. Phrasing is natural. The expectation is arbitrary — the candle, the
+      ceramics and the copper tray would all suit a new home — so this stays a draft and should
+      not gate on one product. Returns nothing today (similarity 0.627 against a 0.645 floor).
 
   - id: ar-something-for-breakfast
     query: شي للفطور
@@ -824,7 +831,11 @@ cases:
     source: draft
     required: [Stone-Ground Tahini]
     top_k: 8
-    note: Colloquial "شي" rather than "شيء". Confirm the normalizer should accept both.
+    note: >-
+      Reviewed 2026-07-31. Colloquial شي for شيء is normal Levantine and the normalizer handles
+      it. The expectation is too narrow: za'atar and honey are at least as canonical a Lebanese
+      breakfast as tahini, so requiring tahini alone is arbitrary. Stays a draft. Returns nothing
+      today (similarity 0.601 against a 0.645 floor).
 
   - id: ar-not-in-catalog
     query: ماكينة قهوة كهربائية
