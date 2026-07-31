@@ -15,16 +15,17 @@ from app.application.llm.gemini_embedding_client import GeminiEmbeddingClient
 from app.application.llm.iembedding_client import EmbeddingError, IEmbeddingClient
 from app.application.llm.openai_embedding_client import OpenAICompatibleEmbeddingClient
 from app.application.search.document import build_document
-from app.application.search.metrics import mean, ndcg_at_k, recall_at_k, reciprocal_rank
 from app.application.search.parser import IntentParser, resolve_filters
 from app.core.config import Settings, load_settings_or_exit
 from app.core.container import container, open_scope
 from app.core.logging import setup_logging
-from app.core.registry import configure, configure_relevance
-from app.core.relevance import RelevanceCase, load_corpus_or_exit
+from app.core.registry import configure
 from app.core.search_aliases import AliasLibrary
 from app.infrastructure.database.store_tables import categories, products
 from app.infrastructure.repositories.search_repository import filtered_products
+from tests.support.metrics import mean, ndcg_at_k, recall_at_k, reciprocal_rank
+from tests.support.relevance import RelevanceCase, load_corpus_or_exit
+from tests.support.wiring import configure_relevance
 
 _NDCG_K = 10
 

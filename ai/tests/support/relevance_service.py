@@ -8,7 +8,18 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.application.dtos.relevance_dto import (
+from app.application.dtos.search_dto import EffectiveFilters, ExplicitFilters, SearchQuery
+from app.application.iservices.isearch_service import ISearchService
+from app.application.search.parser import IntentParser, resolve_filters
+from app.core.container import ScopeFactory, open_scope
+from app.core.exceptions import AppError
+from app.core.index_state import IndexCoverage
+from app.core.search_aliases import AliasLibrary
+from app.infrastructure.database.store_tables import products
+from tests.support.irelevance_service import IRelevanceService
+from tests.support.metrics import mean, ndcg_at_k, recall_at_k, reciprocal_rank
+from tests.support.relevance import RelevanceCase, RelevanceCorpus
+from tests.support.relevance_dto import (
     FAILURE_EMPTY,
     FAILURE_ERROR_EXPECTED,
     FAILURE_ERROR_UNEXPECTED,
@@ -23,17 +34,6 @@ from app.application.dtos.relevance_dto import (
     LanguageScoreDTO,
     RelevanceReportDTO,
 )
-from app.application.dtos.search_dto import EffectiveFilters, ExplicitFilters, SearchQuery
-from app.application.iservices.irelevance_service import IRelevanceService
-from app.application.iservices.isearch_service import ISearchService
-from app.application.search.metrics import mean, ndcg_at_k, recall_at_k, reciprocal_rank
-from app.application.search.parser import IntentParser, resolve_filters
-from app.core.container import ScopeFactory, open_scope
-from app.core.exceptions import AppError
-from app.core.index_state import IndexCoverage
-from app.core.relevance import RelevanceCase, RelevanceCorpus
-from app.core.search_aliases import AliasLibrary
-from app.infrastructure.database.store_tables import products
 
 logger = logging.getLogger(__name__)
 

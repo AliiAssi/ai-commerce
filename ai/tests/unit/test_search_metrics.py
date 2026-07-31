@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.application.search.metrics import (
+from tests.support.metrics import (
     dcg_at_k,
     mean,
     ndcg_at_k,

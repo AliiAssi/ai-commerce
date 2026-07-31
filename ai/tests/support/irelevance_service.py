@@ -3,7 +3,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
 
-from app.application.dtos.relevance_dto import RelevanceReportDTO
+from tests.support.relevance_dto import RelevanceReportDTO
 
 
 class IRelevanceService(ABC):
