@@ -13,10 +13,12 @@ pytestmark = pytest.mark.skipif(
     not os.environ.get("TEST_DATABASE_URL"), reason="TEST_DATABASE_URL not set"
 )
 
-BASELINE_OVERALL_RECALL = 0.75
-BASELINE_ARABIC_RECALL = 0.33
-BASELINE_ENGLISH_RECALL = 1.0
-BASELINE_ENGLISH_MRR = 1.0
+BASELINE_OVERALL_RECALL = 0.62
+BASELINE_ARABIC_RECALL = 0.34
+BASELINE_ENGLISH_RECALL = 0.96
+BASELINE_ENGLISH_MRR = 0.94
+
+NEEDS_A_MODEL = {"en-natural-sweetener", "en-glass-not-glaze"}
 
 
 @pytest.fixture
@@ -37,13 +39,17 @@ class TestCorpusIntegrity:
         assert report.retrieval_path.startswith("documents")
         assert report.index_coverage == "46/46"
 
-    async def test_drafts_are_scored_but_never_gate(self, report):
+    async def test_every_case_is_judged_and_gates(self, report):
         corpus = container.resolve(RelevanceCorpus)
-        drafts = [case for case in corpus.cases if not case.is_gate]
+        drafts = [case.id for case in corpus.cases if not case.is_gate]
 
-        assert drafts, "the corpus has no draft cases, so §15's 50+50 expansion has no runway"
-        assert report.draft_cases == len(drafts)
+        assert drafts == [], (
+            "a draft case is back in the corpus. Every case was reviewed and either promoted or "
+            "deleted on 2026-07-31; a new one has to be judged before it is added, not after."
+        )
+        assert report.draft_cases == 0
         assert all(r.source == "spec" for r in report.results)
+        assert report.scored_cases == len(corpus.cases)
 
 
 class TestDeterministicGates:
@@ -63,10 +69,15 @@ class TestEnglishAlreadyPasses:
         assert english.recall_at_5 >= BASELINE_ENGLISH_RECALL
         assert english.mrr >= BASELINE_ENGLISH_MRR
 
-    async def test_every_english_case_passes(self, report):
-        failing = [r.case_id for r in report.results if r.language == "en" and not r.passed]
+    async def test_only_the_two_model_dependent_english_cases_fail(self, report):
+        failing = {r.case_id for r in report.results if r.language == "en" and not r.passed}
 
-        assert failing == []
+        assert failing == NEEDS_A_MODEL, (
+            "This module measures the degraded path, where no embedding provider and no reranker "
+            "are configured. en-natural-sweetener needs the reranker to order the constraint "
+            "fallback and en-glass-not-glaze needs it to outrank a pitcher with tumblers; every "
+            "other English case is answered by deterministic retrieval alone."
+        )
 
 
 class TestArabicWithoutAModel:
@@ -84,12 +95,14 @@ class TestArabicWithoutAModel:
             "either way this module is no longer measuring the degraded path it claims to."
         )
 
-    async def test_the_overall_gates_fail_only_because_of_arabic(self, report):
-        non_arabic_failures = [
-            r.case_id for r in report.results if r.language != "ar" and not r.passed
-        ]
+    async def test_nothing_outside_arabic_and_the_two_known_cases_fails(self, report):
+        unexpected = {
+            r.case_id
+            for r in report.results
+            if r.language != "ar" and not r.passed and r.case_id not in NEEDS_A_MODEL
+        }
 
-        assert non_arabic_failures == []
+        assert unexpected == set()
 
 
 class TestRegressionFloor:

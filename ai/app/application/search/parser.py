@@ -17,6 +17,105 @@ from app.core.search_aliases import NUMBER_PATTERN, Alias, AliasLibrary
 
 _TRAILING_NUMBER = re.compile(rf"\s*{NUMBER_PATTERN}")
 
+_UNITS_EN = {
+    "zero": 0,
+    "one": 1,
+    "two": 2,
+    "three": 3,
+    "four": 4,
+    "five": 5,
+    "six": 6,
+    "seven": 7,
+    "eight": 8,
+    "nine": 9,
+    "ten": 10,
+    "eleven": 11,
+    "twelve": 12,
+    "thirteen": 13,
+    "fourteen": 14,
+    "fifteen": 15,
+    "sixteen": 16,
+    "seventeen": 17,
+    "eighteen": 18,
+    "nineteen": 19,
+}
+_TENS_EN = {
+    "twenty": 20,
+    "thirty": 30,
+    "forty": 40,
+    "fifty": 50,
+    "sixty": 60,
+    "seventy": 70,
+    "eighty": 80,
+    "ninety": 90,
+}
+_UNITS_AR = {
+    "صفر": 0,
+    "واحد": 1,
+    "اثنان": 2,
+    "اثنين": 2,
+    "ثلاثة": 3,
+    "ثلاث": 3,
+    "اربعة": 4,
+    "اربع": 4,
+    "خمسة": 5,
+    "خمس": 5,
+    "ستة": 6,
+    "ست": 6,
+    "سبعة": 7,
+    "سبع": 7,
+    "ثمانية": 8,
+    "ثماني": 8,
+    "تسعة": 9,
+    "تسع": 9,
+    "عشرة": 10,
+    "عشر": 10,
+}
+_TENS_AR = {
+    "عشرين": 20,
+    "ثلاثين": 30,
+    "اربعين": 40,
+    "خمسين": 50,
+    "ستين": 60,
+    "سبعين": 70,
+    "ثمانين": 80,
+    "تسعين": 90,
+}
+_HUNDRED = {"hundred": 100, "مئة": 100, "مائة": 100}
+
+_NUMBER_WORDS = {
+    fold_for_matching(word): value
+    for word, value in {**_UNITS_EN, **_TENS_EN, **_UNITS_AR, **_TENS_AR, **_HUNDRED}.items()
+}
+_AR_TEN = fold_for_matching("عشر")
+_WORD_NUMBER = re.compile(
+    r"\s*(?:\$\s*)?((?:" + "|".join(sorted(_NUMBER_WORDS, key=len, reverse=True)) + r")"
+    r"(?:[\s\-و]+(?:" + "|".join(sorted(_NUMBER_WORDS, key=len, reverse=True)) + r"))?)"
+)
+
+
+def _words_to_decimal(phrase: str) -> Decimal | None:
+    parts = [p for p in re.split(r"[\s\-]+|(?<=\S)و(?=\S)", phrase) if p in _NUMBER_WORDS]
+    if not parts:
+        return None
+    values = [_NUMBER_WORDS[p] for p in parts]
+    if len(values) == 1:
+        return Decimal(values[0])
+    if len(values) == 2:
+        first, second = values
+        if first == 100:
+            return Decimal(100 + second)
+        if second == 100:
+            return Decimal(first * 100)
+        if parts[1] == _AR_TEN and 1 <= first <= 9:
+            return Decimal(10 + first)
+        if first >= 20 and second < 10:
+            return Decimal(first + second)
+        if second >= 20 and first < 10:
+            return Decimal(second + first)
+    return None
+
+
 PARSER_VERSION = "1"
 
 MAX_QUERY_LENGTH = 200
@@ -116,13 +215,14 @@ class IntentParser:
         for alias in sorted(aliases, key=lambda a: len(a.phrase), reverse=True):
             for match in alias.pattern.finditer(text):
                 number = _TRAILING_NUMBER.match(text, match.end())
-                if number is None:
+                value = _decimal(number.group(1)) if number else None
+                if value is None:
+                    number = _WORD_NUMBER.match(text, match.end())
+                    value = _words_to_decimal(number.group(1)) if number else None
+                if number is None or value is None:
                     continue
                 span = _Span(match.start(), number.end())
                 if _overlaps(span, taken) or self._names_foreign_currency(text, span):
-                    continue
-                value = _decimal(number.group(1))
-                if value is None:
                     continue
                 taken.append(span)
                 return value

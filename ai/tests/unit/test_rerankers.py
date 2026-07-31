@@ -14,6 +14,7 @@ from app.application.rerank.ireranker import (
     RERANK_APPLIED,
     RERANK_SKIPPED,
     RERANK_UNAVAILABLE,
+    IReranker,
     PassthroughReranker,
     RerankCandidate,
     RerankError,
@@ -508,3 +509,82 @@ class TestTheFallbackChain:
             _build_reranker(
                 settings(RERANKER_PROVIDER="openrouter", RERANKER_FALLBACK_PROVIDER="nope")
             )
+
+
+class TestExplicitSortsOwnTheOrdering:
+    """§7.5: an explicit sort decides the order, so reranking must not touch it."""
+
+    def build(self, sort):
+        from contextlib import asynccontextmanager
+
+        from app.application.dtos.search_dto import RetrievalResult
+        from app.application.llm.embedding_providers import EmbeddingProviders
+        from app.application.search.parser import IntentParser
+        from app.application.services.search_service import SearchService
+        from app.core.index_state import IndexCoverage
+        from app.core.search_aliases import load_aliases
+        from app.infrastructure.irepositories.isearch_repository import ISearchRepository
+
+        seen = {"calls": 0}
+
+        class _Counting(IReranker):
+            @property
+            def version(self):
+                return "counting-1"
+
+            async def rerank(self, intent, candidates, *, window):
+                seen["calls"] += 1
+                return RerankResult(
+                    [c.product_id for c in reversed(candidates)], outcome=RERANK_APPLIED
+                )
+
+        class _Repo:
+            async def retrieve(self, request):
+                return RetrievalResult(product_ids=[3, 1, 2], total=3, page=1, page_size=20)
+
+            async def rerank_candidates(self, product_ids):
+                return [
+                    RerankCandidate(product_id=i, document_text=f"doc {i}") for i in product_ids
+                ]
+
+        class _Scope:
+            def resolve(self, interface):
+                assert interface is ISearchRepository
+                return _Repo()
+
+        @asynccontextmanager
+        async def factory():
+            yield _Scope()
+
+        aliases = load_aliases()
+        coverage = IndexCoverage()
+        coverage.ready = True
+        service = SearchService(
+            IntentParser(aliases),
+            aliases,
+            EmbeddingProviders(primary=None),
+            _Counting(),
+            coverage,
+            settings(),
+            factory,
+        )
+        return service, seen
+
+    async def query(self, sort):
+        from app.application.dtos.search_dto import ExplicitFilters, SearchQuery
+
+        service, seen = self.build(sort)
+        result = await service.search(SearchQuery(q="copper", explicit=ExplicitFilters(sort=sort)))
+        return result, seen
+
+    async def test_a_price_sort_skips_the_reranker_entirely(self):
+        result, seen = await self.query("price_desc")
+        assert seen["calls"] == 0, "an explicit sort owns the ordering (§7.5)"
+        assert result.product_ids == [3, 1, 2]
+        assert result.reranked is False
+
+    async def test_relevance_still_reranks(self):
+        result, seen = await self.query("relevance")
+        assert seen["calls"] == 1
+        assert result.product_ids == [2, 1, 3]
+        assert result.reranked is True
