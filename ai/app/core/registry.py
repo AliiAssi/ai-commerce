@@ -175,7 +175,9 @@ def configure(container: Container, settings: Settings) -> None:
 
     container.bind(IChatRepository, ChatRepository)
 
-    container.bind_instance(ToolRegistry, build_tool_registry(bus))
+    container.bind_instance(
+        ToolRegistry, build_tool_registry(bus, search=container.resolve(ISearchService))
+    )
 
     provider = _LLM_PROVIDERS[settings.LLM_PROVIDER]
     container.bind_instance(ILLMClient, ResilientLLMClient(provider(settings), settings))

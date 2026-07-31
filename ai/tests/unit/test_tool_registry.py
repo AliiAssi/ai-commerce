@@ -4,6 +4,7 @@ import pytest
 
 from app.application.dtos.tool_dto import ToolContext
 from app.core.exceptions import ToolExecutionError
+from app.infrastructure.irepositories.iproduct_read_repository import IProductReadRepository
 from tests.unit.conftest import build_fake_registry
 from tests.unit.fakes import FakeOrderReadRepository, FakeProductReadRepository
 
@@ -90,3 +91,56 @@ def test_ollama_tools_schema_shape() -> None:
     assert search["type"] == "function"
     assert search["function"]["parameters"]["type"] == "object"
     assert "query" in search["function"]["parameters"]["properties"]
+
+
+async def test_search_tool_holds_no_scope_while_the_search_service_runs() -> None:
+    """§11 rule 9: the pool is five connections, and searching calls a model provider."""
+    from contextlib import asynccontextmanager
+
+    from app.application.dtos.search_dto import SearchResultDTO
+    from app.application.tools.bootstrap import build_tool_registry
+    from tests.unit.conftest import FakeScope
+
+    open_scopes = 0
+    open_while_searching: list[int] = []
+
+    products = FakeProductReadRepository()
+    products.seed("Alpha Tent", price="100.00", rating_avg="4.50", review_count=3)
+    scope = FakeScope({IProductReadRepository: products})
+
+    @asynccontextmanager
+    async def scope_factory():
+        nonlocal open_scopes
+        open_scopes += 1
+        try:
+            yield scope
+        finally:
+            open_scopes -= 1
+
+    class _Search:
+        async def search(self, query):
+            open_while_searching.append(open_scopes)
+            return SearchResultDTO(
+                product_ids=[p.id for p in products._products],
+                total=1,
+                page=1,
+                page_size=10,
+                query=query.q,
+                language="en",
+                mode="hybrid",
+                reranked=False,
+                effective_sort="relevance",
+                degraded=False,
+                parser_version="p",
+                lexicon_version=1,
+                ranker_version="r",
+            )
+
+    registry = build_tool_registry(scope_factory=scope_factory, search=_Search())
+    result = await registry.execute("search_products", {"query": "tent"}, MCP)
+
+    assert open_while_searching == [0], (
+        "a database connection was held while the search service called its embedding provider"
+    )
+    assert result["items"][0]["name"] == "Alpha Tent"
+    assert result["search"]["mode"] == "hybrid"
