@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+import time
 from collections.abc import Sequence
 
 import httpx
@@ -13,6 +15,8 @@ from app.application.rerank.ireranker import (
     classify_http_error,
 )
 from app.core.config import Settings
+
+logger = logging.getLogger(__name__)
 
 _RERANK_PATH = "/api/v1/rerank"
 
@@ -47,6 +51,7 @@ class OpenRouterReranker(ScoringReranker):
             "documents": [candidate.document_text for candidate in candidates],
             "top_n": len(candidates),
         }
+        started = time.perf_counter()
         try:
             response = await self._client.post(_RERANK_PATH, json=request)
             response.raise_for_status()
@@ -71,6 +76,24 @@ class OpenRouterReranker(ScoringReranker):
             raise RerankError(
                 "rerank response was not in the expected shape", code=ERROR_MALFORMED
             ) from exc
+
+        usage = payload.get("usage") or {}
+        logger.info(
+            "rerank provider=openrouter model=%s candidates=%d tokens=%s cost=%s in %.0fms",
+            self._model,
+            len(candidates),
+            usage.get("total_tokens"),
+            usage.get("cost"),
+            (time.perf_counter() - started) * 1000,
+        )
+        if scores:
+            logger.debug(
+                "rerank scores top=%.5f bottom=%.5f spread=%.5f all=%s",
+                max(scores),
+                min(scores),
+                max(scores) - min(scores),
+                [round(s, 5) for s in scores[:10]],
+            )
 
         if len(results) != len(candidates):
             raise RerankError(

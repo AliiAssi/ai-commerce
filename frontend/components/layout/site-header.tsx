@@ -20,10 +20,9 @@ export function SiteHeader() {
       {/* Utility strip — one quiet line above the masthead; scrolls away, never sticks. */}
       <div className="border-b border-border bg-ink px-4 py-2 text-center text-[0.625rem] tracking-label text-surface uppercase">
         <p className="mx-auto w-full max-w-shell">
-          Sourced directly from makers across Lebanon
           <span className="hidden sm:inline">
             {" "}
-            &middot; payments are simulated so nothing is charged
+            payments are simulated so nothing is charged
           </span>
         </p>
       </div>
