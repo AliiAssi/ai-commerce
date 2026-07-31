@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Sequence
 from decimal import Decimal
 from typing import Any
 
@@ -60,13 +61,27 @@ class RelevanceService(IRelevanceService):
         self._coverage = coverage
         self._scope_factory = scope_factory
 
-    async def score(self, *, label: str, include_drafts: bool = True) -> RelevanceReportDTO:
+    async def score(
+        self,
+        *,
+        label: str,
+        include_drafts: bool = True,
+        only: Sequence[str] | None = None,
+    ) -> RelevanceReportDTO:
         catalog = await self._catalog()
         ready = self._coverage.ready
+        selected = set(only) if only else None
+        if selected:
+            known = {case.id for case in self._corpus.cases}
+            unknown = sorted(selected - known)
+            if unknown:
+                raise ValueError(f"unknown case id(s): {', '.join(unknown)}")
 
         results: list[CaseResultDTO] = []
         drafts: list[CaseResultDTO] = []
         for case in self._corpus.cases:
+            if selected is not None and case.id not in selected:
+                continue
             if not case.is_gate and not include_drafts:
                 continue
             result = await self._run_case(case, catalog)
