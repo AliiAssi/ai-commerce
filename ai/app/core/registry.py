@@ -146,6 +146,11 @@ def _build_reranker(settings: Settings) -> IReranker:
     return RerankerChain(primary, fallback)
 
 
+def configure_relevance(container: Container) -> None:
+    container.bind_instance(RelevanceCorpus, load_corpus_or_exit())
+    container.bind(IRelevanceService, RelevanceService, singleton=True)
+
+
 def configure(container: Container, settings: Settings) -> None:
     engine, session_factory = create_engine_and_sessionmaker(settings)
     container.engine = engine
@@ -175,9 +180,6 @@ def configure(container: Container, settings: Settings) -> None:
 
     container.bind(ISearchIndexRepository, SearchIndexRepository)
     container.bind(IIndexService, IndexService, singleton=True)
-
-    container.bind_instance(RelevanceCorpus, load_corpus_or_exit())
-    container.bind(IRelevanceService, RelevanceService, singleton=True)
 
     container.bind(IChatRepository, ChatRepository)
 

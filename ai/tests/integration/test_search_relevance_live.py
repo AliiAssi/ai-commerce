@@ -12,7 +12,7 @@ from app.application.services.index_service import IndexService
 from app.application.services.search_service import SearchService
 from app.core.config import Settings
 from app.core.container import container
-from app.core.registry import _build_embedding_providers
+from app.core.registry import _build_embedding_providers, configure_relevance
 
 pytestmark = [
     pytest.mark.skipif(not os.environ.get("TEST_DATABASE_URL"), reason="TEST_DATABASE_URL not set"),
@@ -37,6 +37,7 @@ async def _live_report(app, beit_catalog):
 
     previous_flag = settings.SMART_SEARCH_ENABLED
     settings.SMART_SEARCH_ENABLED = True
+    configure_relevance(container)
     container.bind_instance(EmbeddingProviders, _build_embedding_providers(settings))
     container.bind(IIndexService, IndexService, singleton=True)
     container.bind(ISearchService, SearchService, singleton=True)
