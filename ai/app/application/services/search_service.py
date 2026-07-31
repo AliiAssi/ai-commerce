@@ -72,12 +72,11 @@ class SearchService(ISearchService):
             )
             candidates = await repository.rerank_candidates(result.product_ids)
 
-        rerank = await self._reranker.rerank(
-            intent, candidates, window=self._settings.RERANKER_TOP_K
-        )
-        if len(candidates) != len(result.product_ids):
-            rerank = RerankResult(
-                result.product_ids, outcome=RERANK_SKIPPED, version=rerank.version
+        if filters.sort != "relevance" or len(candidates) != len(result.product_ids):
+            rerank = RerankResult(result.product_ids, outcome=RERANK_SKIPPED)
+        else:
+            rerank = await self._reranker.rerank(
+                intent, candidates, window=self._settings.RERANKER_TOP_K
             )
 
         mode, degraded_reason = self._classify(

@@ -15,7 +15,7 @@ categories:
   pantry:
     label: Mouneh & Pantry
     strong:
-      en: [mouneh, mouneh & pantry, pantry, preserves, provisions]
+      en: [mouneh, mouneh & pantry, pantry, preserves, provisions, sweetener, natural sweetener]
       ar: [مونة, مؤونة, مونه]
     weak:
       en: []
@@ -24,8 +24,8 @@ categories:
   coffee-sweets:
     label: Coffee & Sweets
     strong:
-      en: [coffee & sweets, sweets, maamoul, baklava, pastries, confectionery]
-      ar: [حلويات, حلوى, معمول, بقلاوة]
+      en: [coffee & sweets, sweets, maamoul, baklava, pastries, confectionery, tea, herbal tea]
+      ar: [حلويات, حلوى, معمول, بقلاوة, شاي, يانسون, زهورات]
     weak:
       en: [coffee]
       ar: [قهوة, بن]

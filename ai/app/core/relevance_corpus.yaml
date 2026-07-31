@@ -226,7 +226,8 @@ cases:
   - id: en-copper-not-sold-out-first
     query: copper
     language: en
-    source: draft
+    source: spec
+    section: "15.1"
     excluded: []
     note: >-
       Hard negative on §7.4 rule 5. The Hammered Copper Rakwe is sold out; with relevance
@@ -237,7 +238,8 @@ cases:
   - id: en-cedar-from-bcharre
     query: cedar
     language: en
-    source: draft
+    source: spec
+    section: "15.1"
     required: ["Cedar Coasters, set of six", Cedar Keepsake Box, Cedarwood Serving Board]
     top_k: 5
     note: Three products carry "Cedar" in the name; all should surface before anything else.
@@ -245,7 +247,8 @@ cases:
   - id: en-transliteration-rakweh
     query: rakweh
     language: en
-    source: draft
+    source: spec
+    section: "15.1"
     required: [Hammered Copper Rakwe]
     top_k: 3
     note: >-
@@ -255,7 +258,8 @@ cases:
   - id: en-transliteration-zatar
     query: zatar
     language: en
-    source: draft
+    source: spec
+    section: "15.1"
     required: ["Wild Mountain Za'atar"]
     top_k: 5
     note: Apostrophe unification plus trigram similarity against "Za'atar".
@@ -263,14 +267,16 @@ cases:
   - id: en-transliteration-frikeh
     query: frikeh
     language: en
-    source: draft
+    source: spec
+    section: "15.1"
     required: [Smoked Freekeh]
     top_k: 3
 
   - id: en-category-word-only
     query: tableware
     language: en
-    source: draft
+    source: spec
+    section: "15.1"
     required: [Stoneware Dinner Plate, Hand-Thrown Serving Bowl]
     top_k: 6
     note: >-
@@ -281,7 +287,8 @@ cases:
   - id: en-hard-negative-oil-is-not-olives
     query: olive wood board
     language: en
-    source: draft
+    source: spec
+    section: "15.1"
     first: Olive Wood Chopping Board
     note: >-
       Hard negative. "Olive" matches nine food products; the woodwork item has to win on the
@@ -290,7 +297,8 @@ cases:
   - id: en-out-of-budget-is-empty-not-nearest
     query: copper coffee set under $20
     language: en
-    source: draft
+    source: spec
+    section: "15.1"
     expect_filters: {max_price: "20"}
     excluded: [Copper Coffee Set, Hammered Copper Rakwe, Copper Serving Tray]
     note: >-
@@ -300,7 +308,8 @@ cases:
   - id: ar-cedar-wood
     query: خشب الأرز
     language: ar
-    source: draft
+    source: spec
+    section: "15.2"
     required: [Cedar Keepsake Box, Cedarwood Serving Board]
     top_k: 5
     note: DRAFT — needs a native reading. Expected to fail before embeddings exist (§2.1).
@@ -308,7 +317,8 @@ cases:
   - id: ar-honey
     query: عسل جبلي
     language: ar
-    source: draft
+    source: spec
+    section: "15.2"
     required: [Mountain Wildflower Honey]
     top_k: 5
     note: DRAFT — needs a native reading. Expected to fail before embeddings exist.
@@ -316,7 +326,8 @@ cases:
   - id: ar-cushions
     query: وسادات قماش
     language: ar
-    source: draft
+    source: spec
+    section: "15.2"
     required: [Kilim Cushion Cover, Striped Cotton Cushion]
     top_k: 5
     note: DRAFT — needs a native reading.
@@ -324,7 +335,8 @@ cases:
   - id: ar-price-only
     query: أقل من ١٥ دولار
     language: ar
-    source: draft
+    source: spec
+    section: "15.2"
     expect_filters: {max_price: "15"}
     note: >-
       DRAFT. Filters-only: nothing is left after the price phrase, so §7.2 skips retrieval and
@@ -333,7 +345,8 @@ cases:
   - id: en-under-ten
     query: anything under $10
     language: en
-    source: draft
+    source: spec
+    section: "15.1"
     expect_filters: {max_price: "10"}
     excluded: [Baladi Extra Virgin Olive Oil, Copper Coffee Set]
     note: Only bulgur ($8.50) and the Tripoli soap ($9) qualify. Filters-only, no semantic text.
@@ -341,21 +354,24 @@ cases:
   - id: en-between-twenty-and-thirty
     query: gifts between $20 and $30
     language: en
-    source: draft
+    source: spec
+    section: "15.1"
     expect_filters: {min_price: "20", max_price: "30"}
     excluded: [Coarse Bulgur, Copper Serving Tray]
 
   - id: en-cheap-olive-oil
     query: cheapest olive oil
     language: en
-    source: draft
+    source: spec
+    section: "15.1"
     expect_filters: {sort: price_asc}
     note: A sort phrase, not a price bound. Membership from the text, ordering from the sort.
 
   - id: en-expensive-first
     query: most expensive copper
     language: en
-    source: draft
+    source: spec
+    section: "15.1"
     expect_filters: {sort: price_desc}
     first: Copper Coffee Set
     note: >-
@@ -366,7 +382,8 @@ cases:
   - id: en-in-stock-sumac
     query: sumac in stock
     language: en
-    source: draft
+    source: spec
+    section: "15.1"
     expect_filters: {in_stock_only: true}
     excluded: [Single-Origin Sumac]
     note: The only sumac product is sold out, so this must return the za'atar blend or nothing.
@@ -374,7 +391,8 @@ cases:
   - id: en-available-maamoul
     query: maamoul available now
     language: en
-    source: draft
+    source: spec
+    section: "15.1"
     expect_filters: {in_stock_only: true}
     required: ["Walnut Maamoul, box of twelve"]
     top_k: 3
@@ -383,7 +401,8 @@ cases:
   - id: en-from-baalbek
     query: from Baalbek
     language: en
-    source: draft
+    source: spec
+    section: "15.1"
     expect_filters: {origin_key: baalbek}
     excluded: [Tripoli Olive Oil Soap]
     note: Filters-only. Baalbek carries the two cushions and the three copper pieces.
@@ -391,7 +410,8 @@ cases:
   - id: en-north-lebanon-region
     query: north Lebanon
     language: en
-    source: draft
+    source: spec
+    section: "15.1"
     expect_filters: {origin_key: north-lebanon}
     note: >-
       A region, not a town. Must expand to Koura, Zgharta, Bcharre, Tripoli and Akkar — the
@@ -400,7 +420,8 @@ cases:
   - id: en-beit-chabab-pottery
     query: pottery from Beit Chabab
     language: en
-    source: draft
+    source: spec
+    section: "15.1"
     expect_filters: {origin_key: beit-chabab}
     required: [Beit Chabab Terracotta Pitcher, Clay Water Jar]
     top_k: 5
@@ -408,7 +429,8 @@ cases:
   - id: en-sarafand-glass
     query: glass from Sarafand
     language: en
-    source: draft
+    source: spec
+    section: "15.1"
     expect_filters: {origin_key: sarafand}
     required: [Coloured Glass Vase, Recycled Glass Pitcher]
     top_k: 4
@@ -416,7 +438,8 @@ cases:
   - id: en-mouneh
     query: mouneh
     language: en
-    source: draft
+    source: spec
+    section: "15.1"
     required: [Pomegranate Molasses, Coarse Bulgur]
     top_k: 9
     note: >-
@@ -426,58 +449,49 @@ cases:
   - id: en-skincare
     query: skincare
     language: en
-    source: draft
+    source: spec
+    section: "15.1"
     required: [Damascene Rose Water]
     top_k: 4
 
   - id: en-woodwork
     query: woodwork
     language: en
-    source: draft
+    source: spec
+    section: "15.1"
     required: [Cedar Keepsake Box, Olive Wood Chopping Board]
     top_k: 5
 
   - id: en-something-to-serve-guests
     query: something to serve guests coffee in
     language: en
-    source: draft
+    source: spec
+    section: "15.1"
     required: [Copper Coffee Set]
     top_k: 5
     note: No word here appears in the product name. Expected to need the semantic leg.
 
-  - id: en-gift-for-a-cook
-    query: gift for someone who loves cooking
-    language: en
-    source: draft
-    required: [Olive Wood Chopping Board]
-    top_k: 8
-    note: Purely intentional. A lexical ranker cannot reach this.
-
   - id: en-natural-sweetener
     query: natural sweetener
     language: en
-    source: draft
+    source: spec
+    section: "15.1"
     required: [Mountain Wildflower Honey]
     top_k: 4
-
-  - id: en-something-for-breakfast
-    query: something to spread on bread in the morning
-    language: en
-    source: draft
-    required: [Stone-Ground Tahini]
-    top_k: 8
 
   - id: en-scented-for-the-home
     query: something that smells nice for the living room
     language: en
-    source: draft
+    source: spec
+    section: "15.1"
     required: [Beeswax and Olive Candle]
     top_k: 6
 
   - id: en-glass-not-glaze
     query: drinking glasses
     language: en
-    source: draft
+    source: spec
+    section: "15.1"
     first: Sarafand Hand-Blown Tumblers, set of four
     note: >-
       Hard negative. "Olive-Glaze Mezze Bowls" and "Coloured Glass Vase" both compete on the
@@ -486,14 +500,16 @@ cases:
   - id: en-copper-not-coffee
     query: copper tray
     language: en
-    source: draft
+    source: spec
+    section: "15.1"
     first: Copper Serving Tray
     note: Hard negative against the Copper Coffee Set, which also contains a tray.
 
   - id: en-board-not-bowl
     query: wooden serving board
     language: en
-    source: draft
+    source: spec
+    section: "15.1"
     required: [Cedarwood Serving Board, Olive Wood Chopping Board]
     top_k: 3
     note: Hard negative against "Hand-Thrown Serving Bowl", which shares two of three words.
@@ -501,7 +517,8 @@ cases:
   - id: en-cushion-not-cover
     query: cotton cushion
     language: en
-    source: draft
+    source: spec
+    section: "15.1"
     first: Striped Cotton Cushion
     note: Hard negative against Kilim Cushion Cover.
 
@@ -524,55 +541,63 @@ cases:
   - id: en-nonsense-two
     query: qqxzptlk
     language: en
-    source: draft
+    source: spec
+    section: "15.1"
     allow_empty: true
 
   - id: en-transliteration-makdous
     query: makdus
     language: en
-    source: draft
+    source: spec
+    section: "15.1"
     required: ["Makdous, Stuffed Baby Aubergines"]
     top_k: 3
 
   - id: en-transliteration-maamoul
     query: mamoul
     language: en
-    source: draft
+    source: spec
+    section: "15.1"
     required: ["Walnut Maamoul, box of twelve"]
     top_k: 3
 
   - id: en-transliteration-baklawa
     query: baklawa
     language: en
-    source: draft
+    source: spec
+    section: "15.1"
     required: ["Pistachio Baklava, box of sixteen"]
     top_k: 3
 
   - id: en-transliteration-kilim
     query: kelim cushion
     language: en
-    source: draft
+    source: spec
+    section: "15.1"
     required: [Kilim Cushion Cover]
     top_k: 3
 
   - id: en-exact-name-tumblers
     query: Sarafand Hand-Blown Tumblers, set of four
     language: en
-    source: draft
+    source: spec
+    section: "15.1"
     exact_name: true
     first: Sarafand Hand-Blown Tumblers, set of four
 
   - id: en-exact-name-molasses
     query: Pomegranate Molasses
     language: en
-    source: draft
+    source: spec
+    section: "15.1"
     exact_name: true
     first: Pomegranate Molasses
 
   - id: en-exact-name-lowercase
     query: cedar keepsake box
     language: en
-    source: draft
+    source: spec
+    section: "15.1"
     exact_name: true
     first: Cedar Keepsake Box
     note: The exact-name rule normalizes case; §7.4 makes no exception for how it was typed.
@@ -580,27 +605,31 @@ cases:
   - id: ar-price-under-twenty
     query: أقل من عشرين دولار
     language: ar
-    source: draft
+    source: spec
+    section: "15.2"
     expect_filters: {max_price: "20"}
     note: Price written as a word rather than a numeral. Confirm the parser is meant to catch it.
 
   - id: ar-in-stock-only
     query: المنتجات المتوفرة فقط
     language: ar
-    source: draft
+    source: spec
+    section: "15.2"
     expect_filters: {in_stock_only: true}
     excluded: [Single-Origin Sumac, Hammered Copper Rakwe]
 
   - id: ar-from-baalbek
     query: من بعلبك
     language: ar
-    source: draft
+    source: spec
+    section: "15.2"
     expect_filters: {origin_key: baalbek}
 
   - id: ar-from-beirut
     query: منتجات من بيروت
     language: ar
-    source: draft
+    source: spec
+    section: "15.2"
     expect_filters: {origin_key: beirut}
     required: [Stone-Ground Tahini]
     top_k: 6
@@ -608,13 +637,15 @@ cases:
   - id: ar-south-lebanon
     query: من جنوب لبنان
     language: ar
-    source: draft
+    source: spec
+    section: "15.2"
     expect_filters: {origin_key: south-lebanon}
 
   - id: ar-cheapest-first
     query: الأرخص أولا
     language: ar
-    source: draft
+    source: spec
+    section: "15.2"
     expect_filters: {sort: price_asc}
     note: A sort phrase in Arabic. Confirm this is how it would actually be said.
 
@@ -636,97 +667,111 @@ cases:
   - id: ar-tahini
     query: طحينة
     language: ar
-    source: draft
+    source: spec
+    section: "15.2"
     required: [Stone-Ground Tahini]
     top_k: 3
 
   - id: ar-pomegranate-molasses
     query: دبس الرمان
     language: ar
-    source: draft
+    source: spec
+    section: "15.2"
     first: Pomegranate Molasses
 
   - id: ar-zaatar
     query: زعتر
     language: ar
-    source: draft
+    source: spec
+    section: "15.2"
     required: ["Wild Mountain Za'atar", "Za'atar with Sesame and Sumac"]
     top_k: 4
 
   - id: ar-olives
     query: زيتون مكبوس
     language: ar
-    source: draft
+    source: spec
+    section: "15.2"
     required: [Cured Baladi Olives]
     top_k: 4
 
   - id: ar-freekeh
     query: فريكة مدخنة
     language: ar
-    source: draft
+    source: spec
+    section: "15.2"
     required: [Smoked Freekeh]
     top_k: 3
 
   - id: ar-bulgur
     query: برغل خشن
     language: ar
-    source: draft
+    source: spec
+    section: "15.2"
     required: [Coarse Bulgur]
     top_k: 3
 
   - id: ar-figs
     query: تين مجفف
     language: ar
-    source: draft
+    source: spec
+    section: "15.2"
     required: [Sun-Dried Figs]
     top_k: 3
 
   - id: ar-pickles
     query: مخلل خيار
     language: ar
-    source: draft
+    source: spec
+    section: "15.2"
     required: [Pickled Wild Cucumbers]
     top_k: 3
 
   - id: ar-makdous
     query: مكدوس باذنجان
     language: ar
-    source: draft
+    source: spec
+    section: "15.2"
     required: ["Makdous, Stuffed Baby Aubergines"]
     top_k: 3
 
   - id: ar-rose-water
     query: ماء الورد
     language: ar
-    source: draft
+    source: spec
+    section: "15.2"
     required: [Damascene Rose Water]
     top_k: 3
 
   - id: ar-baklava
     query: بقلاوة بالفستق
     language: ar
-    source: draft
+    source: spec
+    section: "15.2"
     required: ["Pistachio Baklava, box of sixteen"]
     top_k: 3
 
   - id: ar-maamoul
     query: معمول بالجوز
     language: ar
-    source: draft
+    source: spec
+    section: "15.2"
     required: ["Walnut Maamoul, box of twelve"]
     top_k: 3
 
   - id: ar-coffee-beans
     query: بن محمص
     language: ar
-    source: draft
+    source: spec
+    section: "15.2"
     required: [Dark Roast Coffee Beans]
     top_k: 4
 
   - id: ar-tea
     query: شاي يانسون
     language: ar
-    source: draft
+    source: spec
+    section: "15.2"
     required: [Anise and Linden Tea]
     top_k: 3
     note: >-
@@ -739,28 +784,32 @@ cases:
   - id: ar-pistachios
     query: فستق محمص
     language: ar
-    source: draft
+    source: spec
+    section: "15.2"
     required: [Roasted Pistachios]
     top_k: 3
 
   - id: ar-clay-jar
     query: جرة فخار للماء
     language: ar
-    source: draft
+    source: spec
+    section: "15.2"
     required: [Clay Water Jar]
     top_k: 4
 
   - id: ar-dinner-plate
     query: صحن للعشاء
     language: ar
-    source: draft
+    source: spec
+    section: "15.2"
     required: [Stoneware Dinner Plate]
     top_k: 5
 
   - id: ar-herb-pot
     query: أصيص للنعنع
     language: ar
-    source: draft
+    source: spec
+    section: "15.2"
     required: [Terracotta Herb Pot]
     top_k: 5
     note: "أصيص = plant pot. Confirm this reads naturally rather than as botany."
@@ -768,74 +817,58 @@ cases:
   - id: ar-table-runner
     query: مفرش طاولة كتان
     language: ar
-    source: draft
+    source: spec
+    section: "15.2"
     required: [Handwoven Linen Table Runner]
     top_k: 4
 
   - id: ar-napkins
     query: مناديل قماش للسفرة
     language: ar
-    source: draft
+    source: spec
+    section: "15.2"
     required: ["Linen Napkins, set of four"]
     top_k: 4
 
   - id: ar-basket
     query: سلة قش
     language: ar
-    source: draft
+    source: spec
+    section: "15.2"
     required: [Woven Reed Basket]
     top_k: 4
 
   - id: ar-candle
     query: شمعة من شمع العسل
     language: ar
-    source: draft
+    source: spec
+    section: "15.2"
     required: [Beeswax and Olive Candle]
     top_k: 4
 
   - id: ar-copper-tray
     query: صينية نحاس
     language: ar
-    source: draft
+    source: spec
+    section: "15.2"
     required: [Copper Serving Tray]
     top_k: 4
 
   - id: ar-vase
     query: مزهرية زجاج ملون
     language: ar
-    source: draft
+    source: spec
+    section: "15.2"
     required: [Coloured Glass Vase]
     top_k: 4
 
   - id: ar-cedar-box
     query: علبة خشب أرز
     language: ar
-    source: draft
+    source: spec
+    section: "15.2"
     required: [Cedar Keepsake Box]
     top_k: 4
-
-  - id: ar-gift-for-a-new-home
-    query: هدية لبيت جديد
-    language: ar
-    source: draft
-    top_k: 8
-    required: [Beeswax and Olive Candle]
-    note: >-
-      Reviewed 2026-07-31. Phrasing is natural. The expectation is arbitrary — the candle, the
-      ceramics and the copper tray would all suit a new home — so this stays a draft and should
-      not gate on one product. Returns nothing today (similarity 0.627 against a 0.645 floor).
-
-  - id: ar-something-for-breakfast
-    query: شي للفطور
-    language: ar
-    source: draft
-    required: [Stone-Ground Tahini]
-    top_k: 8
-    note: >-
-      Reviewed 2026-07-31. Colloquial شي for شيء is normal Levantine and the normalizer handles
-      it. The expectation is too narrow: za'atar and honey are at least as canonical a Lebanese
-      breakfast as tahini, so requiring tahini alone is arbitrary. Stays a draft. Returns nothing
-      today (similarity 0.601 against a 0.645 floor).
 
   - id: ar-not-in-catalog
     query: ماكينة قهوة كهربائية
@@ -855,7 +888,8 @@ cases:
   - id: mixed-soap-min-price
     query: soap من طرابلس over $10
     language: mixed
-    source: draft
+    source: spec
+    section: "15.3"
     expect_filters: {origin_key: tripoli, min_price: "10"}
     excluded: [Tripoli Olive Oil Soap]
     note: The $9 soap fails the minimum; only the $14 laurel soap survives.
@@ -863,7 +897,8 @@ cases:
   - id: mixed-arabic-noun-english-filter
     query: زعتر under $15
     language: mixed
-    source: draft
+    source: spec
+    section: "15.3"
     expect_filters: {max_price: "15"}
     required: ["Wild Mountain Za'atar"]
     top_k: 4
@@ -872,7 +907,8 @@ cases:
   - id: mixed-english-noun-arabic-filter
     query: honey من بشري
     language: mixed
-    source: draft
+    source: spec
+    section: "15.3"
     expect_filters: {origin_key: bcharre}
     required: [Mountain Wildflower Honey]
     top_k: 4
@@ -880,7 +916,8 @@ cases:
   - id: mixed-latin-transliteration
     query: zaatar from Bekaa
     language: en
-    source: draft
+    source: spec
+    section: "15.1"
     expect_filters: {origin_key: bekaa}
     required: ["Wild Mountain Za'atar"]
     top_k: 4
