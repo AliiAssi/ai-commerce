@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import time
+from typing import NamedTuple
 
 from app.application.dtos.search_dto import (
     DegradedReason,
@@ -27,6 +28,12 @@ from app.infrastructure.irepositories.isearch_repository import ISearchRepositor
 from app.infrastructure.repositories.search_repository import RANKER_VERSION
 
 logger = logging.getLogger(__name__)
+
+
+class _QueryEmbedding(NamedTuple):
+    vector: QueryVectorDTO | None
+    failed: bool
+    cache_key: str | None = None
 
 
 class SearchService(ISearchService):
@@ -67,7 +74,7 @@ class SearchService(ISearchService):
         )
 
         embed_started = time.perf_counter()
-        query_vector, embedding_failed = await self._query_vector(intent)
+        embedding = await self._query_vector(intent)
         embed_ms = (time.perf_counter() - embed_started) * 1000
 
         retrieve_started = time.perf_counter()
@@ -80,11 +87,18 @@ class SearchService(ISearchService):
                     filters=filters,
                     page=query.page,
                     page_size=query.page_size,
-                    query_vector=query_vector,
+                    query_vector=embedding.vector,
                 )
             )
             candidates = await repository.rerank_candidates(result.product_ids)
-        retrieve_ms = (time.perf_counter() - retrieve_started) * 1000
+            retrieve_ms = (time.perf_counter() - retrieve_started) * 1000
+            if embedding.cache_key is not None and embedding.vector is not None:
+                await repository.store_query_vector(
+                    embedding.cache_key,
+                    embedding.vector,
+                    language=intent.language,
+                    ttl_seconds=self._settings.SEARCH_QUERY_CACHE_TTL_SECONDS,
+                )
 
         logger.info(
             "search retrieve q=%r legs sem=%d lex=%d trg=%d total=%d in %.0fms",
@@ -128,7 +142,7 @@ class SearchService(ISearchService):
                 logger.debug("rerank order %s -> %s", before[:8], rerank.product_ids[:8])
 
         mode, degraded_reason = self._classify(
-            intent, result, embedding_failed=embedding_failed, reranked=rerank.applied
+            intent, result, embedding_failed=embedding.failed, reranked=rerank.applied
         )
         logger.info(
             "search done q=%r mode=%s degraded=%s returned=%d "
@@ -160,17 +174,17 @@ class SearchService(ISearchService):
             ranker_version=RANKER_VERSION,
         )
 
-    async def _query_vector(self, intent: SearchIntent) -> tuple[QueryVectorDTO | None, bool]:
+    async def _query_vector(self, intent: SearchIntent) -> _QueryEmbedding:
         if not self._settings.SMART_SEARCH_ENABLED or not intent.semantic_text:
-            return None, False
+            return _QueryEmbedding(None, False)
         if not self._providers.any_configured:
-            return None, False
+            return _QueryEmbedding(None, False)
 
         slot = self._providers.configured[0]
         model = self._providers.model(slot)
         dimensions = self._providers.dimensions(slot)
         if not model or not dimensions:
-            return None, False
+            return _QueryEmbedding(None, False)
 
         key = query_cache_key(
             semantic_text=intent.semantic_text,
@@ -188,7 +202,7 @@ class SearchService(ISearchService):
                 cached.dimensions,
                 key[:12],
             )
-            return cached.model_copy(update={"slot": slot}), False
+            return _QueryEmbedding(cached.model_copy(update={"slot": slot}), False)
 
         call_started = time.perf_counter()
         try:
@@ -201,7 +215,7 @@ class SearchService(ISearchService):
                 exc.retryable,
                 (time.perf_counter() - call_started) * 1000,
             )
-            return None, True
+            return _QueryEmbedding(None, True)
 
         logger.info(
             "embedding CACHE MISS q=%r provider=%s model=%s dims=%d in %.0fms",
@@ -223,15 +237,7 @@ class SearchService(ISearchService):
             embedding_model=batch.model,
             dimensions=batch.dimensions,
         )
-        if used_slot == slot:
-            async with self._scope_factory() as scope:
-                await scope.resolve(ISearchRepository).store_query_vector(
-                    key,
-                    vector,
-                    language=intent.language,
-                    ttl_seconds=self._settings.SEARCH_QUERY_CACHE_TTL_SECONDS,
-                )
-        return vector, False
+        return _QueryEmbedding(vector, False, cache_key=key if used_slot == slot else None)
 
     def _classify(
         self,

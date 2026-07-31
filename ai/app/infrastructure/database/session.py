@@ -18,8 +18,7 @@ def create_engine_and_sessionmaker(
         connect_args=settings.database_connect_args,
         pool_size=2,
         max_overflow=3,
-        pool_pre_ping=True,
-        pool_recycle=300,
+        pool_recycle=180,
     )
     factory = async_sessionmaker(engine, expire_on_commit=False)
     return engine, factory
