@@ -8,7 +8,7 @@ from typing import Any, Literal
 
 import yaml
 
-CORPUS_PATH = Path(__file__).with_name("relevance_corpus.yaml")
+CORPUS_PATH = Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "relevance_corpus.yaml"
 
 CaseSource = Literal["spec", "draft"]
 CaseLanguage = Literal["en", "ar", "mixed"]

@@ -20,7 +20,7 @@ from app.application.search.parser import IntentParser, resolve_filters
 from app.core.config import Settings, load_settings_or_exit
 from app.core.container import container, open_scope
 from app.core.logging import setup_logging
-from app.core.registry import configure
+from app.core.registry import configure, configure_relevance
 from app.core.relevance import RelevanceCase, load_corpus_or_exit
 from app.core.search_aliases import AliasLibrary
 from app.infrastructure.database.store_tables import categories, products
@@ -223,6 +223,7 @@ async def run(argv: list[str] | None = None) -> int:
     settings = load_settings_or_exit()
     setup_logging(settings.ENVIRONMENT)
     configure(container, settings)
+    configure_relevance(container)
     assert container.engine is not None
     corpus = load_corpus_or_exit()
 

@@ -7,6 +7,7 @@ import pytest
 from app.application.iservices.iindex_service import IIndexService
 from app.application.iservices.irelevance_service import IRelevanceService
 from app.core.container import container
+from app.core.registry import configure_relevance
 from app.core.relevance import RelevanceCorpus
 
 pytestmark = pytest.mark.skipif(
@@ -23,6 +24,7 @@ NEEDS_A_MODEL = {"en-natural-sweetener", "en-glass-not-glaze"}
 
 @pytest.fixture
 async def report(app, beit_catalog):
+    configure_relevance(container)
     await container.resolve(IIndexService).sweep()
     await container.resolve(IIndexService).drain(max_batches=50)
     await container.resolve(IIndexService).refresh_coverage()
