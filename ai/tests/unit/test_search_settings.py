@@ -88,14 +88,21 @@ def test_the_search_models_are_configured_separately_from_the_chat_model():
     assert settings.EMBEDDING_MODEL == ""
 
 
-def test_reranker_timeout_cannot_exceed_the_search_deadline():
-    with pytest.raises(ValidationError, match="RERANKER_TIMEOUT_SECONDS"):
-        make(RERANKER_TIMEOUT_SECONDS=5.0, SEARCH_DEADLINE_SECONDS=3.0)
+def test_the_reranker_timeout_has_to_be_a_usable_duration():
+    """It used to be bounded by SEARCH_DEADLINE_SECONDS, which nothing ever enforced.
+
+    The real ceiling is the caller's timeout — web's SEARCH_TIMEOUT_SECONDS — and that lives in
+    a different service, so it cannot be validated from here. What can be ruled out is a value
+    that makes no sense on its own.
+    """
+    for bad in (0, -1.0, 31.0):
+        with pytest.raises(ValidationError, match="RERANKER_TIMEOUT_SECONDS"):
+            make(RERANKER_TIMEOUT_SECONDS=bad)
 
 
-def test_the_search_deadline_is_far_below_the_chat_timeout():
+def test_the_reranker_timeout_stays_well_under_the_chat_timeout():
     settings = make()
-    assert settings.SEARCH_DEADLINE_SECONDS < settings.LLM_TIMEOUT_SECONDS
+    assert settings.RERANKER_TIMEOUT_SECONDS < settings.LLM_TIMEOUT_SECONDS
 
 
 def test_query_text_is_never_retained_longer_than_the_metrics():

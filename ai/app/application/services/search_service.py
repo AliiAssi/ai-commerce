@@ -150,7 +150,7 @@ class SearchService(ISearchService):
             floor_en=self._settings.RERANK_MIN_SCORE,
             floor_ar=self._settings.RERANK_MIN_SCORE_AR,
             gap_ratio=self._settings.RERANK_GAP_RATIO,
-            max_results=self._settings.RERANK_MAX_RESULTS,
+            max_results=query.page_size,
         )
         outcome = apply_cutoff(rerank.product_ids, rerank.scores, cutoff)
         ordered_by_relevance = filters.sort == "relevance"
