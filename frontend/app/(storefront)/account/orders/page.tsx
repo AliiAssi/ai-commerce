@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 
 import { StatusBadge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/panel";
+import { LinkSpinner } from "@/components/ui/pending-link";
 import { Price } from "@/components/ui/price";
 import { listOrders } from "@/lib/api/orders";
 import { getToken } from "@/lib/auth/session";
@@ -45,8 +46,10 @@ export default async function OrdersPage() {
                 <span className="ml-auto">
                   <Price value={order.total} />
                 </span>
-                <span className="text-ink-faint" aria-hidden="true">
-                  &rarr;
+                <span className="text-ink-faint">
+                  <LinkSpinner>
+                    <span aria-hidden="true">&rarr;</span>
+                  </LinkSpinner>
                 </span>
               </Link>
             </li>

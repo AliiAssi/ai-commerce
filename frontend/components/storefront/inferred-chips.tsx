@@ -1,19 +1,8 @@
-import Link from "next/link";
+import { CatalogLink } from "./catalog-nav";
 
 import type { SearchMetadata } from "@/lib/api/types";
 import { chipsFor, copyDir, copyFor, type CopyLang } from "@/lib/search-copy";
 
-/**
- * What the parser understood, as chips the shopper can switch off (§5.2).
- *
- * Removal is **filter-only** (§5.2.1). The link keeps `q` exactly as typed and adds the
- * inference name to `ignore_inferred`; it never edits the visible query. Rewriting `q` would
- * make the search box disagree with the URL, and the recognised phrase has to keep influencing
- * ranking even once its filter is gone — dropping the Beirut filter should stop Beirut being
- * exclusive, not stop it mattering.
- *
- * Plain links, so this works without JavaScript like the rest of the catalog.
- */
 export function InferredChips({
   search,
   lang,
@@ -37,7 +26,7 @@ export function InferredChips({
     >
       <span className="text-ink-faint">{copy.interpretedLabel}</span>
       {chips.map((chip) => (
-        <Link
+        <CatalogLink
           key={chip.name}
           href={hrefWithout(chip.name)}
           // Not a <button>: this is a navigation to a different set of results, and the
@@ -50,22 +39,12 @@ export function InferredChips({
           <span aria-hidden="true" className="text-ink-faint group-hover:text-brand">
             &times;
           </span>
-        </Link>
+        </CatalogLink>
       ))}
     </div>
   );
 }
 
-/**
- * The degraded notice (§5.3, §12).
- *
- * Shown only when results came back degraded *and* there are results — an empty degraded
- * search gets its own empty state instead, so the shopper is not told twice.
- *
- * §5.3 forbids claiming a semantic match when the request fell back to lexical, which is the
- * whole reason this exists; §12 forbids naming a provider, so the copy says what happened to
- * the shopper, not what broke.
- */
 export function DegradedNotice({ lang }: { lang: CopyLang }) {
   const copy = copyFor(lang);
   return (

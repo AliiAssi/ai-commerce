@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 
+import { useCatalogNav } from "./catalog-nav";
 import type { SortOption } from "@/lib/api/types";
 import { isDefaultSort, sortsFor } from "@/lib/catalog-sort";
 
@@ -17,6 +18,7 @@ export function SortSelect({
   hasQuery?: boolean;
 }) {
   const router = useRouter();
+  const nav = useCatalogNav();
 
   return (
     <select
@@ -33,7 +35,11 @@ export function SortSelect({
         // §5.3: a sort change resets to page 1. `filters` already excludes `page`, so this is
         // a note about why it must keep doing so.
         const query = params.toString();
-        router.push(query ? `/catalog?${query}` : "/catalog");
+        const href = query ? `/catalog?${query}` : "/catalog";
+        // Through the provider so the change is a tracked transition and the grid goes stale;
+        // a bare push gives no pending state to read at all.
+        if (nav) nav.navigate(href);
+        else router.push(href);
       }}
       className="cursor-pointer border-0 border-b border-border bg-transparent py-1 text-sm text-ink focus:outline-none"
     >

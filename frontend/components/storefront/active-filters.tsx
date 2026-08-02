@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { CatalogLink } from "./catalog-nav";
 
 export type ActiveFilter = {
   name: string;
@@ -29,7 +29,7 @@ export function ActiveFilters({
     >
       <span className="text-ink-faint">Showing</span>
       {hasSearch && (
-        <Link
+        <CatalogLink
           href={clearSearchHref as string}
           dir="auto"
           className="group inline-flex max-w-full items-center gap-1.5 rounded-el border border-brand bg-surface-alt px-2.5 py-1 text-ink hover:border-brand hover:text-brand"
@@ -40,10 +40,10 @@ export function ActiveFilters({
           <span aria-hidden="true" className="text-ink-faint group-hover:text-brand">
             &times;
           </span>
-        </Link>
+        </CatalogLink>
       )}
       {filters.map((filter) => (
-        <Link
+        <CatalogLink
           key={filter.name}
           href={filter.href}
           className="group inline-flex items-center gap-1.5 rounded-el border border-border bg-surface-alt px-2.5 py-1 text-ink-muted hover:border-brand hover:text-brand"
@@ -54,12 +54,12 @@ export function ActiveFilters({
           <span aria-hidden="true" className="text-ink-faint group-hover:text-brand">
             &times;
           </span>
-        </Link>
+        </CatalogLink>
       ))}
       {filters.length > 1 && (
-        <Link href={clearHref} className="text-ink-faint underline hover:text-brand">
+        <CatalogLink href={clearHref} className="text-ink-faint underline hover:text-brand">
           Clear all
-        </Link>
+        </CatalogLink>
       )}
     </div>
   );

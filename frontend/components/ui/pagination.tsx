@@ -1,8 +1,12 @@
-import Link from "next/link";
+import { CatalogLink } from "@/components/storefront/catalog-nav";
 
 /**
  * Plain links, no htmx target. The catalog reads its whole state from the URL, so changing
  * the page is just a navigation and the rail can never disagree with the grid.
+ *
+ * Prefetched because these two are the highest-intent links on the page, and a dynamic route
+ * with no loading boundary prefetches nothing by default. Outside a catalog provider — the
+ * admin tables reuse this — CatalogLink degrades to an ordinary <Link>.
  */
 export function Pagination({
   page,
@@ -32,17 +36,17 @@ export function Pagination({
       aria-label="Pagination"
     >
       {page > 1 && (
-        <Link href={hrefFor(page - 1)} className={linkClass}>
+        <CatalogLink href={hrefFor(page - 1)} className={linkClass} prefetch>
           &larr; Prev
-        </Link>
+        </CatalogLink>
       )}
       <span className="text-ink-muted">
         Page {page} of {pages}
       </span>
       {page < pages && (
-        <Link href={hrefFor(page + 1)} className={linkClass}>
+        <CatalogLink href={hrefFor(page + 1)} className={linkClass} prefetch>
           Next &rarr;
-        </Link>
+        </CatalogLink>
       )}
     </nav>
   );

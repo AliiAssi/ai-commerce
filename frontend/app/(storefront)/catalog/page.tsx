@@ -1,14 +1,26 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 
 import { QuickAdd } from "@/components/cart/add-to-bag";
 import { ActiveFilters, type ActiveFilter } from "@/components/storefront/active-filters";
+import {
+  CatalogHeading,
+  CatalogNavProvider,
+  CategoryLink,
+  StaleResults,
+} from "@/components/storefront/catalog-nav";
 import { DegradedNotice, InferredChips } from "@/components/storefront/inferred-chips";
 import { SortSelect } from "@/components/storefront/sort-select";
 import { Button } from "@/components/ui/button";
-import { FilterLink } from "@/components/ui/links";
 import { Pagination } from "@/components/ui/pagination";
 import { EmptyState } from "@/components/ui/panel";
 import { Plate } from "@/components/ui/plate";
+import {
+  FilterRailSkeleton,
+  PLATE_GRID,
+  PlateGridSkeleton,
+  Skeleton,
+} from "@/components/ui/skeleton";
 import { Eyebrow } from "@/components/ui/typography";
 import { listCategories, listProducts } from "@/lib/api/catalog";
 import { ApiError } from "@/lib/api/client";
@@ -207,45 +219,28 @@ function describeFilters(params: Params, categories: Category[]): ActiveFilter[]
   return chips;
 }
 
+function countFilters(p: Params): number {
+  return [p.category, p.origin, p.minPrice, p.maxPrice, p.inStockOnly ? "y" : ""].filter(
+    Boolean,
+  ).length;
+}
+
 export default async function CatalogPage(props: { searchParams: Promise<RawParams> }) {
   const params = readParams(await props.searchParams);
   const hasQuery = Boolean(params.q);
 
-  const [result, categories] = await Promise.all([loadProducts(params), listCategories()]);
+  const products = loadProducts(params);
+  const categories = listCategories();
 
-  const search = result.search;
-  const lang = copyLang(search?.language);
-
-  // A category link changes the category, drops the search term, and resets to page 1 — the
-  // last happens for free because `page` is never in `toQuery`'s output.
-  const railQuery = toQuery(clearsSearch(params), ["category"]);
-  const categoryHref = (slug?: string) => {
-    const query = new URLSearchParams(railQuery);
-    if (slug) query.set("category", slug);
-    return catalogHref(query);
-  };
-
-  // §5.2.1: suppressing an inference keeps `q` and every other parameter untouched.
-  const hrefWithout = (name: string) =>
-    catalogHref(toQuery({ ...params, ignoreInferred: [...params.ignoreInferred, name] }));
-
-  const totalGoods = categories.reduce((sum, c) => sum + c.product_count, 0);
-
-  const activeFilters = describeFilters(params, categories);
-  const clearAllHref = catalogHref(
-    toQuery(params, ["category", "origin", "min_price", "max_price", "in_stock_only"]),
-  );
-  // Clearing the term keeps the filters, which is the opposite of what a category link does —
-  // between them the shopper can drop either half of a search without losing the other.
-  const clearSearchHref = hasQuery ? catalogHref(toQuery(clearsSearch(params))) : null;
+  const filterCount = countFilters(params);
 
   return (
-    <>
+    <CatalogNavProvider category={params.category}>
       <div className="mb-10 flex items-baseline justify-between gap-6">
         <h1 className="font-serif text-4xl tracking-tight">Catalog</h1>
-        <Eyebrow tone="muted">
-          {result.total} good{result.total === 1 ? "" : "s"}
-        </Eyebrow>
+        <Suspense fallback={<Skeleton className="h-3 w-20" />}>
+          <TotalCount products={products} />
+        </Suspense>
       </div>
 
       <div className="grid gap-12 lg:grid-cols-[13rem_1fr] lg:items-start">
@@ -258,9 +253,9 @@ export default async function CatalogPage(props: { searchParams: Promise<RawPara
           <summary className="cursor-pointer list-none text-sm font-medium text-ink marker:hidden [&::-webkit-details-marker]:hidden">
             <span className="inline-flex items-center gap-1.5">
               Filters
-              {activeFilters.length > 0 && (
+              {filterCount > 0 && (
                 <span className="rounded-full bg-brand px-1.5 text-xs text-surface">
-                  {activeFilters.length}
+                  {filterCount}
                 </span>
               )}
               <span aria-hidden="true" className="text-ink-faint">
@@ -269,13 +264,10 @@ export default async function CatalogPage(props: { searchParams: Promise<RawPara
             </span>
           </summary>
           <div className="mt-6 flex flex-col gap-8">
-            <FilterPanel
-              params={params}
-              categories={categories}
-              totalGoods={totalGoods}
-              categoryHref={categoryHref}
-              hasQuery={hasQuery}
-            />
+            <Suspense fallback={<FilterRailSkeleton />}>
+              <CategoryRail params={params} categories={categories} />
+            </Suspense>
+            <FilterForm params={params} hasQuery={hasQuery} />
           </div>
         </details>
 
@@ -283,19 +275,16 @@ export default async function CatalogPage(props: { searchParams: Promise<RawPara
           className="hidden flex-col gap-8 lg:sticky lg:top-24 lg:flex"
           data-testid="filters-rail"
         >
-          <FilterPanel
-            params={params}
-            categories={categories}
-            totalGoods={totalGoods}
-            categoryHref={categoryHref}
-            hasQuery={hasQuery}
-          />
+          <Suspense fallback={<FilterRailSkeleton />}>
+            <CategoryRail params={params} categories={categories} />
+          </Suspense>
+          <FilterForm params={params} hasQuery={hasQuery} />
         </aside>
 
         <div>
           <div className="mb-8 flex items-baseline justify-between gap-4 border-b border-border pb-5">
             <Eyebrow tone="muted">
-              {params.category ? params.category.replaceAll("-", " ") : "Everything"}
+              <CatalogHeading category={params.category} />
             </Eyebrow>
             <SortSelect
               value={params.sort}
@@ -304,149 +293,210 @@ export default async function CatalogPage(props: { searchParams: Promise<RawPara
             />
           </div>
 
-          <ActiveFilters
-            filters={activeFilters}
-            clearHref={clearAllHref}
-            searchTerm={params.q}
-            clearSearchHref={clearSearchHref}
-          />
-          <InferredChips search={search} lang={lang} hrefWithout={hrefWithout} />
-          {isFaultDegradation(search) && result.items.length > 0 && (
-            <DegradedNotice lang={lang} />
-          )}
+          {/* The shopper's own filters stay lit while results reload — they are the optimistic
+              signal. The inferred chips describe the results, so they dim with them. */}
+          <Suspense fallback={null}>
+            <ActiveFilterChips params={params} categories={categories} />
+          </Suspense>
 
-          {result.items.length > 0 ? (
-            <>
-              <div className="grid grid-cols-1 gap-x-7 gap-y-10 sm:grid-cols-2 xl:grid-cols-3">
-                {result.items.map((product) => (
-                  <Plate
-                    key={product.id}
-                    product={product}
-                    quickAdd={<QuickAdd productId={product.id} productName={product.name} />}
-                  />
-                ))}
-              </div>
-              <Pagination page={result.page} pages={result.pages} query={toQuery(params)} />
-            </>
-          ) : (
-            <CatalogEmptyState params={params} search={search} />
-          )}
+          <StaleResults>
+            <Suspense fallback={<PlateGridSkeleton />}>
+              <Results params={params} products={products} />
+            </Suspense>
+          </StaleResults>
         </div>
       </div>
+    </CatalogNavProvider>
+  );
+}
+
+async function TotalCount({ products }: { products: Promise<ProductPage> }) {
+  const { total } = await products;
+  return (
+    <Eyebrow tone="muted">
+      {total} good{total === 1 ? "" : "s"}
+    </Eyebrow>
+  );
+}
+
+async function CategoryRail({
+  params,
+  categories,
+}: {
+  params: Params;
+  categories: Promise<Category[]>;
+}) {
+  const list = await categories;
+  const totalGoods = list.reduce((sum, c) => sum + c.product_count, 0);
+
+  // A category link changes the category, drops the search term, and resets to page 1 — the
+  // last happens for free because `page` is never in `toQuery`'s output.
+  const railQuery = toQuery(clearsSearch(params), ["category"]);
+  const categoryHref = (slug?: string) => {
+    const query = new URLSearchParams(railQuery);
+    if (slug) query.set("category", slug);
+    return catalogHref(query);
+  };
+
+  return (
+    <div className="flex flex-col gap-2.5">
+      <Eyebrow>Category</Eyebrow>
+      <div className="flex flex-col">
+        <CategoryLink href={categoryHref()} slug="" name="Everything" count={totalGoods} />
+        {list.map((category) => (
+          <CategoryLink
+            key={category.id}
+            href={categoryHref(category.slug)}
+            slug={category.slug}
+            name={category.name}
+            count={category.product_count}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+async function ActiveFilterChips({
+  params,
+  categories,
+}: {
+  params: Params;
+  categories: Promise<Category[]>;
+}) {
+  const list = await categories;
+  const clearAllHref = catalogHref(
+    toQuery(params, ["category", "origin", "min_price", "max_price", "in_stock_only"]),
+  );
+  // Clearing the term keeps the filters, which is the opposite of what a category link does —
+  // between them the shopper can drop either half of a search without losing the other.
+  const clearSearchHref = params.q ? catalogHref(toQuery(clearsSearch(params))) : null;
+
+  return (
+    <ActiveFilters
+      filters={describeFilters(params, list)}
+      clearHref={clearAllHref}
+      searchTerm={params.q}
+      clearSearchHref={clearSearchHref}
+    />
+  );
+}
+
+async function Results({
+  params,
+  products,
+}: {
+  params: Params;
+  products: Promise<ProductPage>;
+}) {
+  const result = await products;
+  const search = result.search;
+  const lang = copyLang(search?.language);
+
+  // §5.2.1: suppressing an inference keeps `q` and every other parameter untouched.
+  const hrefWithout = (name: string) =>
+    catalogHref(toQuery({ ...params, ignoreInferred: [...params.ignoreInferred, name] }));
+
+  return (
+    <>
+      <InferredChips search={search} lang={lang} hrefWithout={hrefWithout} />
+      {isFaultDegradation(search) && result.items.length > 0 && <DegradedNotice lang={lang} />}
+
+      {result.items.length > 0 ? (
+        <>
+          <div className={PLATE_GRID}>
+            {result.items.map((product) => (
+              <Plate
+                key={product.id}
+                product={product}
+                quickAdd={<QuickAdd productId={product.id} productName={product.name} />}
+              />
+            ))}
+          </div>
+          <Pagination page={result.page} pages={result.pages} query={toQuery(params)} />
+        </>
+      ) : (
+        <CatalogEmptyState params={params} search={search} />
+      )}
     </>
   );
 }
 
-function FilterPanel({
-  params,
-  categories,
-  totalGoods,
-  categoryHref,
-  hasQuery,
-}: {
-  params: Params;
-  categories: Category[];
-  totalGoods: number;
-  categoryHref: (slug?: string) => string;
-  hasQuery: boolean;
-}) {
+function FilterForm({ params, hasQuery }: { params: Params; hasQuery: boolean }) {
   return (
-    <>
+    <form action="/catalog" method="get" className="flex flex-col gap-5">
+      {params.category && <input type="hidden" name="category" value={params.category} />}
+      {params.origin && <input type="hidden" name="origin" value={params.origin} />}
+      {!isDefaultSort(params.sort, hasQuery) && (
+        <input type="hidden" name="sort" value={params.sort} />
+      )}
+      {params.ignoreInferred.length > 0 && (
+        <input type="hidden" name="ignore_inferred" value={params.ignoreInferred.join(",")} />
+      )}
+
       <div className="flex flex-col gap-2.5">
-        <Eyebrow>Category</Eyebrow>
-        <div className="flex flex-col">
-          <FilterLink
-            href={categoryHref()}
-            name="Everything"
-            count={totalGoods}
-            active={!params.category}
+        <Eyebrow>Search</Eyebrow>
+        <input
+          type="search"
+          name="q"
+          dir="auto"
+          maxLength={200}
+          defaultValue={params.q}
+          placeholder="e.g. olive oil · زيت زيتون"
+          aria-label="Search the store · ابحث في المتجر"
+          className="w-full rounded-el border border-border bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-faint focus:border-brand focus:outline-none"
+        />
+      </div>
+
+      <div className="flex flex-col gap-2.5">
+        <Eyebrow>Price</Eyebrow>
+        <div className="flex items-center gap-2">
+          <input
+            type="number"
+            name="min_price"
+            min="0"
+            step="0.01"
+            placeholder="Min"
+            aria-label="Minimum price"
+            defaultValue={params.minPrice}
+            className="w-full min-w-0 rounded-el border border-border bg-surface px-2.5 py-2 text-sm text-ink placeholder:text-ink-faint focus:border-brand focus:outline-none"
           />
-          {categories.map((category) => (
-            <FilterLink
-              key={category.id}
-              href={categoryHref(category.slug)}
-              name={category.name}
-              count={category.product_count}
-              active={params.category === category.slug}
-            />
-          ))}
+          <span aria-hidden="true" className="text-ink-faint">
+            –
+          </span>
+          <input
+            type="number"
+            name="max_price"
+            min="0"
+            step="0.01"
+            placeholder="Max"
+            aria-label="Maximum price"
+            defaultValue={params.maxPrice}
+            className="w-full min-w-0 rounded-el border border-border bg-surface px-2.5 py-2 text-sm text-ink placeholder:text-ink-faint focus:border-brand focus:outline-none"
+          />
         </div>
       </div>
 
-      <form action="/catalog" method="get" className="flex flex-col gap-5">
-        {params.category && <input type="hidden" name="category" value={params.category} />}
-        {params.origin && <input type="hidden" name="origin" value={params.origin} />}
-        {!isDefaultSort(params.sort, hasQuery) && (
-          <input type="hidden" name="sort" value={params.sort} />
-        )}
-        {params.ignoreInferred.length > 0 && (
-          <input type="hidden" name="ignore_inferred" value={params.ignoreInferred.join(",")} />
-        )}
+      <label className="flex items-center gap-2 text-sm text-ink-muted">
+        <input
+          type="checkbox"
+          name="in_stock_only"
+          value="true"
+          defaultChecked={params.inStockOnly}
+          className="rounded border-border text-brand focus:ring-brand"
+        />
+        In stock only
+      </label>
 
-        <div className="flex flex-col gap-2.5">
-          <Eyebrow>Search</Eyebrow>
-          <input
-            type="search"
-            name="q"
-            dir="auto"
-            maxLength={200}
-            defaultValue={params.q}
-            placeholder="e.g. olive oil · زيت زيتون"
-            aria-label="Search the store · ابحث في المتجر"
-            className="w-full rounded-el border border-border bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-faint focus:border-brand focus:outline-none"
-          />
-        </div>
-
-        <div className="flex flex-col gap-2.5">
-          <Eyebrow>Price</Eyebrow>
-          <div className="flex items-center gap-2">
-            <input
-              type="number"
-              name="min_price"
-              min="0"
-              step="0.01"
-              placeholder="Min"
-              aria-label="Minimum price"
-              defaultValue={params.minPrice}
-              className="w-full min-w-0 rounded-el border border-border bg-surface px-2.5 py-2 text-sm text-ink placeholder:text-ink-faint focus:border-brand focus:outline-none"
-            />
-            <span aria-hidden="true" className="text-ink-faint">
-              –
-            </span>
-            <input
-              type="number"
-              name="max_price"
-              min="0"
-              step="0.01"
-              placeholder="Max"
-              aria-label="Maximum price"
-              defaultValue={params.maxPrice}
-              className="w-full min-w-0 rounded-el border border-border bg-surface px-2.5 py-2 text-sm text-ink placeholder:text-ink-faint focus:border-brand focus:outline-none"
-            />
-          </div>
-        </div>
-
-        <label className="flex items-center gap-2 text-sm text-ink-muted">
-          <input
-            type="checkbox"
-            name="in_stock_only"
-            value="true"
-            defaultChecked={params.inStockOnly}
-            className="rounded border-border text-brand focus:ring-brand"
-          />
-          In stock only
-        </label>
-
-        <div className="flex items-center gap-4">
-          <Button type="submit" size="sm">
-            Apply
-          </Button>
-          <a href="/catalog" className="text-sm text-ink-faint hover:text-brand">
-            Clear
-          </a>
-        </div>
-      </form>
-    </>
+      <div className="flex items-center gap-4">
+        <Button type="submit" size="sm">
+          Apply
+        </Button>
+        <a href="/catalog" className="text-sm text-ink-faint hover:text-brand">
+          Clear
+        </a>
+      </div>
+    </form>
   );
 }
 
