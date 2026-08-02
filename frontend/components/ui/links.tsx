@@ -1,6 +1,7 @@
 import Link from "next/link";
-import type { ReactNode } from "react";
+import type { MouseEventHandler, ReactNode } from "react";
 
+import { Spinner } from "./spinner";
 import { cn } from "@/lib/cn";
 
 /** A primary navigation link. The active page keeps the brand underline lit. */
@@ -59,15 +60,20 @@ export function FilterLink({
   name,
   count,
   active = false,
+  pending = false,
+  onClick,
 }: {
   href: string;
   name: string;
   count: number;
   active?: boolean;
+  pending?: boolean;
+  onClick?: MouseEventHandler<HTMLAnchorElement>;
 }) {
   return (
     <Link
       href={href}
+      onClick={onClick}
       aria-current={active ? "true" : undefined}
       className={cn(
         "flex items-baseline justify-between gap-3 py-1.5 text-sm transition-colors",
@@ -78,7 +84,7 @@ export function FilterLink({
         {active && <span aria-hidden="true">— </span>}
         {name}
       </span>
-      <span className="tabular-nums text-ink-faint">{count}</span>
+      {pending ? <Spinner /> : <span className="tabular-nums text-ink-faint">{count}</span>}
     </Link>
   );
 }
