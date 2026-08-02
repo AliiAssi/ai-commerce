@@ -28,6 +28,15 @@ export class ApiError extends Error {
   get isForbidden() {
     return this.status === 403;
   }
+
+  /**
+   * §9.3: the request was understood and found invalid — an inverted price range, say. It is
+   * not a degradation and not an outage, so the caller renders the contradiction back to the
+   * shopper rather than falling back to results that would ignore half of what they asked.
+   */
+  get isInvalidRequest() {
+    return this.status === 422;
+  }
 }
 
 type CachePolicy =

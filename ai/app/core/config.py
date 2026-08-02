@@ -88,6 +88,16 @@ class Settings(DatabaseSettings):
 
     RERANKER_QUOTA_COOLDOWN_SECONDS: float = Field(default=900.0, gt=0)
 
+    # Calibrated 2026-08-01 against nvidia/llama-nemotron-rerank-vl-1b-v2 over the relevance
+    # corpus. English relevant scores bottom out at 0.0058 against a 0.0004-0.002 noise band;
+    # Arabic runs an order of magnitude lower (relevant min 0.0037, median 0.0361) and overlaps
+    # its own negatives, so its floor is looser and the gap rule does most of the cutting.
+    # Re-run scripts/calibrate_cutoff.py after changing RERANKER_MODEL — these do not transfer.
+    RERANK_MIN_SCORE: float = Field(default=0.005, ge=0.0, le=1.0)
+    RERANK_MIN_SCORE_AR: float = Field(default=0.003, ge=0.0, le=1.0)
+    RERANK_GAP_RATIO: float = Field(default=0.35, ge=0.0, le=1.0)
+    RERANK_MAX_RESULTS: int = Field(default=12, ge=1, le=100)
+
     SEARCH_DEADLINE_SECONDS: float = 30.0
     SEARCH_SEMANTIC_CANDIDATES: int = Field(default=100, ge=1, le=1000)
     SEARCH_LEXICAL_CANDIDATES: int = Field(default=100, ge=1, le=1000)

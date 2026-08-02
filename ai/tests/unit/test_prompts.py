@@ -35,6 +35,11 @@ def test_unknown_key_and_missing_placeholder_raise() -> None:
     assert library.render("greet", name="sam") == "hello sam"
 
 
+def test_literal_braces_and_dollars_survive_rendering() -> None:
+    library = PromptLibrary({"example": 'reply {"ok": true} for {store_name} under $20'})
+    assert library.render("example", store_name="BEIT") == 'reply {"ok": true} for BEIT under $20'
+
+
 def _raw(key: str) -> str:
     node = yaml.safe_load(PROMPTS_PATH.read_text(encoding="utf-8"))
     for part in key.split("."):

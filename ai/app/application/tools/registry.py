@@ -46,6 +46,7 @@ class ToolRegistry:
         return self._tools[name].spec
 
     def ollama_tools(self) -> list[dict[str, Any]]:
+        """Tools offered to the shopper-facing chat; internal ones stay out of the catalogue."""
         return [
             {
                 "type": "function",
@@ -56,6 +57,7 @@ class ToolRegistry:
                 },
             }
             for entry in self._tools.values()
+            if not entry.spec.internal
         ]
 
     async def execute(
@@ -63,6 +65,8 @@ class ToolRegistry:
     ) -> dict[str, Any]:
         entry = self._tools.get(name)
         if entry is None:
+            raise ToolExecutionError(f"unknown tool {name!r}")
+        if entry.spec.internal and context.source == "chat":
             raise ToolExecutionError(f"unknown tool {name!r}")
 
         arguments = dict(arguments)

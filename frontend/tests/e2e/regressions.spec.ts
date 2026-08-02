@@ -60,16 +60,29 @@ test.describe("header search", () => {
     await expect(page.getByTestId("header-search").first()).toHaveValue("");
   });
 
-  test("the rail's Everything keeps the search, clearing only the category", async ({
-    page,
-  }) => {
+  /**
+   * Everything is a category link like any other, so it ends the search too — §5.3. The
+   * regression it still guards is the category half: it must actually clear `category`, not
+   * merely swap it, and the search box must agree with the URL rather than showing a term the
+   * results no longer reflect.
+   */
+  test("the rail's Everything clears both the category and the search", async ({ page }) => {
     await page.goto("/catalog?q=soap&category=soap-skincare");
 
     await page.getByRole("link", { name: /^Everything \d/ }).click();
 
-    await expect(page).toHaveURL(/q=soap/);
     await expect(page).not.toHaveURL(/category=/);
-    await expect(page.getByTestId("header-search").first()).toHaveValue("soap");
+    await expect(page).not.toHaveURL(/[?&]q=/);
+    await expect(page.getByTestId("header-search").first()).toHaveValue("");
+  });
+
+  test("a category link keeps explicit filters while dropping the term", async ({ page }) => {
+    await page.goto("/catalog?q=soap&category=soap-skincare&in_stock_only=true");
+
+    await page.getByRole("link", { name: /^Everything \d/ }).click();
+
+    await expect(page).toHaveURL(/in_stock_only=true/);
+    await expect(page).not.toHaveURL(/[?&]q=/);
   });
 });
 

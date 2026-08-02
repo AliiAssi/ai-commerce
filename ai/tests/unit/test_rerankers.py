@@ -577,11 +577,18 @@ class TestExplicitSortsOwnTheOrdering:
         result = await service.search(SearchQuery(q="copper", explicit=ExplicitFilters(sort=sort)))
         return result, seen
 
-    async def test_a_price_sort_skips_the_reranker_entirely(self):
+    async def test_a_price_sort_owns_the_ordering_but_not_the_membership(self):
+        """§7.5 splits the two, and this used to skip the reranker for both.
+
+        The reranker still runs, because §7.5 gives membership to the relevance floor and only
+        ordering to the sort — and the floor is computed from rerank scores. Skipping it handed
+        a price-sorted shopper every candidate, including the ones relevance had just dropped.
+        The reversed order this counting stub returns must not survive into the result.
+        """
         result, seen = await self.query("price_desc")
-        assert seen["calls"] == 0, "an explicit sort owns the ordering (§7.5)"
-        assert result.product_ids == [3, 1, 2]
-        assert result.reranked is False
+        assert seen["calls"] == 1, "membership still comes from the relevance floor (§7.5)"
+        assert result.product_ids == [3, 1, 2], "ordering still comes from the sort (§7.5)"
+        assert result.reranked is False, "`reranked` describes the ordering, which was the sort"
 
     async def test_relevance_still_reranks(self):
         result, seen = await self.query("relevance")

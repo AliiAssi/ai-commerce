@@ -57,6 +57,7 @@ def register_analytics_tools(registry: ToolRegistry) -> None:
             name="low_stock_products",
             description="The n products with the lowest stock. Useful for scarcity questions.",
             params_model=TopNParams,
+            internal=True,
         ),
         _low_stock_products,
     )

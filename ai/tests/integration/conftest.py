@@ -58,7 +58,10 @@ async def app(_migrated):
 
     from app.main import app as fastapi_app
 
-    async with LifespanManager(fastapi_app):
+    # 5s is plenty against a local socket; a remote TEST_DATABASE_URL needs more to open its
+    # pool and read index coverage before the app reports ready.
+    timeout = float(os.environ.get("TEST_LIFESPAN_TIMEOUT_SECONDS", "5"))
+    async with LifespanManager(fastapi_app, startup_timeout=timeout, shutdown_timeout=timeout):
         yield fastapi_app
 
     from app.core.container import container
@@ -92,8 +95,12 @@ _CANDIDATE_TABLES = (
 )
 
 
-@pytest.fixture(autouse=True)
-async def _clean(app):
+async def truncate_all() -> None:
+    """Empty every table this suite writes to and reset index coverage.
+
+    Split out of `_clean` so a module-scoped fixture can start from a known-empty database —
+    per-test cleaning runs *after* wider-scoped setup, so it cannot be relied on for that.
+    """
     from sqlalchemy import text
 
     from app.core.container import container
@@ -122,6 +129,11 @@ async def _clean(app):
     coverage.ready = False
     coverage.active_products = 0
     coverage.documents = 0
+
+
+@pytest.fixture(autouse=True)
+async def _clean(app):
+    await truncate_all()
     yield
 
 
@@ -139,8 +151,12 @@ def seed_data():
     return _seed_data()
 
 
-@pytest.fixture
-async def beit_catalog(app, seed_data) -> dict[int, str]:
+async def seed_beit_catalog(seed_data) -> dict[int, str]:
+    """Insert the BEIT catalog and return id -> name.
+
+    Split out of the `beit_catalog` fixture so a module-scoped fixture can seed too — pytest
+    forbids depending on a function-scoped fixture from a wider scope.
+    """
     from sqlalchemy import insert, select
 
     from app.core.container import container
@@ -178,6 +194,11 @@ async def beit_catalog(app, seed_data) -> dict[int, str]:
         )
         rows = (await session.execute(select(products.c.id, products.c.name))).all()
     return {row.id: row.name for row in rows}
+
+
+@pytest.fixture
+async def beit_catalog(app, seed_data) -> dict[int, str]:
+    return await seed_beit_catalog(seed_data)
 
 
 @pytest.fixture

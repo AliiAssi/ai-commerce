@@ -17,7 +17,7 @@ from app.core.index_state import IndexCoverage
 from app.core.search_aliases import AliasLibrary
 from app.infrastructure.database.store_tables import products
 from tests.support.irelevance_service import IRelevanceService
-from tests.support.metrics import mean, ndcg_at_k, recall_at_k, reciprocal_rank
+from tests.support.metrics import mean, ndcg_at_k, precision_at_k, recall_at_k, reciprocal_rank
 from tests.support.relevance import RelevanceCase, RelevanceCorpus
 from tests.support.relevance_dto import (
     FAILURE_EMPTY,
@@ -27,8 +27,10 @@ from tests.support.relevance_dto import (
     FAILURE_FILTERS,
     FAILURE_FIRST,
     FAILURE_INFERRED,
+    FAILURE_IRRELEVANT,
     FAILURE_MISSING,
     FAILURE_NOT_FIRST,
+    FAILURE_TOO_MANY,
     FAILURE_UNKNOWN_PRODUCT,
     CaseResultDTO,
     LanguageScoreDTO,
@@ -41,6 +43,8 @@ GATE_EXACT_NAME = 1.0
 GATE_FILTER_PRECISION = 1.0
 GATE_RECALL_AT_5 = 0.90
 GATE_MRR = 0.90
+GATE_PRECISION_AT_3 = 0.90
+GATE_PRECISION_AT_5 = 0.85
 
 _NDCG_K = 10
 _PAGE_SIZE = 20
@@ -67,6 +71,7 @@ class RelevanceService(IRelevanceService):
         label: str,
         include_drafts: bool = True,
         only: Sequence[str] | None = None,
+        enforce_cutoff: bool = False,
     ) -> RelevanceReportDTO:
         catalog = await self._catalog()
         ready = self._coverage.ready
@@ -84,7 +89,7 @@ class RelevanceService(IRelevanceService):
                 continue
             if not case.is_gate and not include_drafts:
                 continue
-            result = await self._run_case(case, catalog)
+            result = await self._run_case(case, catalog, enforce_cutoff=enforce_cutoff)
             (results if case.is_gate else drafts).append(result)
 
         overall = _score_group("overall", results)
@@ -112,7 +117,9 @@ class RelevanceService(IRelevanceService):
             gate_failures=_gate_failures(overall, by_language),
         )
 
-    async def _run_case(self, case: RelevanceCase, catalog: dict[str, int]) -> CaseResultDTO:
+    async def _run_case(
+        self, case: RelevanceCase, catalog: dict[str, int], *, enforce_cutoff: bool = False
+    ) -> CaseResultDTO:
         unknown = [name for name in case.product_names if name not in catalog]
         if unknown:
             return CaseResultDTO(
@@ -172,7 +179,9 @@ class RelevanceService(IRelevanceService):
 
         effective = self._effective_filters(case)
         self._check_filters(case, result, effective, failures, detail)
-        self._check_ranking(case, result, catalog, returned, failures, detail)
+        self._check_ranking(
+            case, result, catalog, returned, failures, detail, enforce_cutoff=enforce_cutoff
+        )
 
         return CaseResultDTO(
             case_id=case.id,
@@ -197,6 +206,17 @@ class RelevanceService(IRelevanceService):
                 if (case.required or case.first)
                 else None
             ),
+            precision_at_3=(
+                precision_at_k(result.product_ids, _relevant_ids(case, catalog), 3)
+                if case.exhaustive and enforce_cutoff
+                else None
+            ),
+            precision_at_5=(
+                precision_at_k(result.product_ids, _relevant_ids(case, catalog), 5)
+                if case.exhaustive and enforce_cutoff
+                else None
+            ),
+            returned_count=len(result.product_ids),
             filters_correct=(
                 not _filter_mismatches(case, effective) if case.expect_filters else None
             ),
@@ -230,7 +250,15 @@ class RelevanceService(IRelevanceService):
                 detail.append(f"inferred {name}: expected {expected!r}, reported {actual!r}")
 
     def _check_ranking(
-        self, case: RelevanceCase, result: Any, catalog, returned, failures, detail
+        self,
+        case: RelevanceCase,
+        result: Any,
+        catalog,
+        returned,
+        failures,
+        detail,
+        *,
+        enforce_cutoff: bool = False,
     ) -> None:
         ids = result.product_ids
 
@@ -263,6 +291,25 @@ class RelevanceService(IRelevanceService):
         if present:
             failures.append(FAILURE_EXCLUDED)
             detail.extend(f"excluded {name!r} was returned" for name in present)
+
+        if not enforce_cutoff:
+            return
+
+        if case.max_results is not None and len(ids) > case.max_results:
+            failures.append(FAILURE_TOO_MANY)
+            detail.append(
+                f"returned {len(ids)} products for a query that admits at most "
+                f"{case.max_results}: {returned[: case.max_results + 3]}"
+            )
+
+        if case.exhaustive:
+            relevant = {catalog[name] for name in case.relevant}
+            strays = [name for pid, name in zip(ids, returned, strict=True) if pid not in relevant]
+            if strays:
+                failures.append(FAILURE_IRRELEVANT)
+                detail.append(
+                    f"{case.id} names every relevant product; these are not among them: {strays}"
+                )
 
     async def _catalog(self) -> dict[str, int]:
         async with self._scope_factory() as scope:
@@ -315,6 +362,8 @@ def _score_group(language: str, results: list[CaseResultDTO]) -> LanguageScoreDT
         mrr=mean([r.reciprocal_rank for r in results if r.reciprocal_rank is not None]),
         recall_at_5=mean([r.recall_at_k for r in results if r.recall_at_k is not None]),
         ndcg_at_10=mean([r.ndcg_at_10 for r in results if r.ndcg_at_10 is not None]),
+        precision_at_3=mean([r.precision_at_3 for r in results if r.precision_at_3 is not None]),
+        precision_at_5=mean([r.precision_at_5 for r in results if r.precision_at_5 is not None]),
         filter_precision=mean(
             [1.0 if r.filters_correct else 0.0 for r in results if r.filters_correct is not None]
         ),
@@ -334,6 +383,10 @@ def _gate_failures(overall: LanguageScoreDTO, by_language: list[LanguageScoreDTO
         )
     if overall.mrr < GATE_MRR:
         failures.append(f"MRR {overall.mrr:.2f} < {GATE_MRR:.2f}")
+    if overall.precision_at_3 < GATE_PRECISION_AT_3:
+        failures.append(f"precision@3 {overall.precision_at_3:.2f} < {GATE_PRECISION_AT_3:.2f}")
+    if overall.precision_at_5 < GATE_PRECISION_AT_5:
+        failures.append(f"precision@5 {overall.precision_at_5:.2f} < {GATE_PRECISION_AT_5:.2f}")
     for score in [overall, *by_language]:
         if score.recall_at_5 < GATE_RECALL_AT_5:
             failures.append(
