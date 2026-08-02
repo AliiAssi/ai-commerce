@@ -101,6 +101,89 @@ test.describe("catalog", () => {
     await expect(plates(page)).toHaveCount(0);
   });
 
+  /**
+   * The two price boxes are independent inputs, so "min 30, max 20" is one careless entry
+   * away — and the API answers that pair with a 422, which used to surface as a 500 page.
+   */
+  test("an inverted price range shows the empty state, not an error", async ({ page }) => {
+    const response = await page.goto("/catalog?min_price=30&max_price=20");
+
+    expect(response?.status()).toBe(200);
+    await expect(page.getByText("Nothing matches all of those filters")).toBeVisible();
+    await expect(plates(page)).toHaveCount(0);
+    await expect(page.getByTestId("active-chip-min_price")).toBeVisible();
+    await expect(page.getByTestId("active-chip-max_price")).toBeVisible();
+  });
+
+  test("an unusable price bound is dropped rather than sent to the API", async ({ page }) => {
+    const response = await page.goto("/catalog?min_price=abc&max_price=-5");
+
+    expect(response?.status()).toBe(200);
+    expect(await plates(page).count()).toBeGreaterThan(0);
+    await expect(page.getByTestId("active-chip-min_price")).toHaveCount(0);
+    await expect(page.getByTestId("active-chip-max_price")).toHaveCount(0);
+  });
+
+  /**
+   * The 2026-08-01 smoke test found all eight categories, both price fields and the stock
+   * control sitting above the first product at 390x844. The disclosure is a real <details>,
+   * so the assertions are about what the shopper can see, not about a class name.
+   */
+  test.describe("filters on a phone", () => {
+    test.use({ viewport: { width: 390, height: 844 } });
+
+    test("the first product is reachable without scrolling past every filter", async ({
+      page,
+    }) => {
+      await page.goto("/catalog");
+
+      const disclosure = page.getByTestId("filters-disclosure");
+      await expect(disclosure).toBeVisible();
+      await expect(disclosure.getByLabel("Minimum price")).toBeHidden();
+
+      const firstPlate = await plates(page).first().boundingBox();
+      expect(firstPlate?.y ?? Infinity).toBeLessThan(844);
+    });
+
+    test("opening the disclosure reveals the filters", async ({ page }) => {
+      await page.goto("/catalog");
+      const disclosure = page.getByTestId("filters-disclosure");
+
+      await disclosure.getByText("Filters").click();
+
+      await expect(disclosure.getByLabel("Minimum price")).toBeVisible();
+      await expect(disclosure.getByRole("button", { name: "Apply" })).toBeVisible();
+    });
+
+    test("an active filter is visible above the results while collapsed", async ({ page }) => {
+      await page.goto("/catalog?category=ceramics&in_stock_only=true");
+
+      await expect(page.getByTestId("active-filters")).toBeVisible();
+      await expect(page.getByTestId("active-chip-category")).toBeVisible();
+      await expect(page.getByTestId("active-chip-in_stock_only")).toBeVisible();
+      await expect(
+        page.getByTestId("filters-disclosure").getByLabel("Minimum price"),
+      ).toBeHidden();
+    });
+
+    test("dropping a chip clears just that filter", async ({ page }) => {
+      await page.goto("/catalog?category=ceramics&in_stock_only=true");
+
+      await page.getByTestId("active-chip-in_stock_only").click();
+
+      await expect(page).toHaveURL(/category=ceramics/);
+      await expect(page).not.toHaveURL(/in_stock_only/);
+      await expectPlatesShown(page);
+    });
+  });
+
+  test("the filter rail is open by default on a desktop viewport", async ({ page }) => {
+    await page.goto("/catalog");
+
+    await expect(page.getByTestId("filters-disclosure")).toBeHidden();
+    await expect(page.getByTestId("filters-rail").getByLabel("Minimum price")).toBeVisible();
+  });
+
   test("a product page opens from the catalog", async ({ page }) => {
     await page.goto("/catalog");
     const name = (await plates(page).first().locator("a").nth(1).innerText()).trim();

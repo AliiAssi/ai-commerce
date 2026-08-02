@@ -150,6 +150,18 @@ async def test_loop_cap_yields_error() -> None:
     assert events[-1].type == "error"
 
 
+async def test_blank_model_reply_becomes_a_fallback_message() -> None:
+    service, chat = _build(FakeLLMClient([answer_turn("   ")]))
+    session = await service.resolve_session(None, None)
+
+    events = await _collect(service, session, "hi")
+
+    assert events[-1].type == "done"
+    stored = await chat.list_messages(session.id)
+    assert stored[1].content.strip()
+    assert any(e.type == "token" and "rephrase" in (e.text or "") for e in events)
+
+
 async def test_session_cap_rejects_before_llm() -> None:
     chat = FakeChatRepository()
     service, _ = _build(

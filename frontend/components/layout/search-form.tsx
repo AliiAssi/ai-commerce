@@ -20,7 +20,11 @@ export function SearchForm({ className = "" }: { className?: string }) {
         {/* Bilingual per §5.1: the input accepts both languages, so its accessible name says
             so in both. The rest of the storefront stays English (§4). */}
         <span className="sr-only">Search the store · ابحث في المتجر</span>
-        <span className="pointer-events-none absolute inset-y-0 start-3 grid place-items-center text-ink-faint">
+        {/* Physical `left`, not logical `start`. The input flips to RTL on Arabic input
+            (dir="auto"), and a logical offset would carry the icon across with it — into the
+            corner WebKit draws the native clear button in. The header chrome around it is
+            physically laid out anyway, so the magnifier stays put in both languages. */}
+        <span className="pointer-events-none absolute inset-y-0 left-3 grid place-items-center text-ink-faint">
           <Icon name="search" />
         </span>
         <input
@@ -36,7 +40,11 @@ export function SearchForm({ className = "" }: { className?: string }) {
           maxLength={200}
           defaultValue={query}
           placeholder="Search the store · ابحث"
-          className="w-full rounded-el border border-border bg-surface-alt py-2 pe-3 ps-9 text-sm placeholder:text-ink-faint focus:border-brand focus:outline-none"
+          // Padding is physical for the same reason the icon is, so Arabic text keeps its
+          // clearance from the magnifier instead of running underneath it. The native WebKit
+          // clear button is suppressed: it is the thing that collided, it moves with the text
+          // direction, and Firefox never drew it — so removing it also makes the two agree.
+          className="w-full rounded-el border border-border bg-surface-alt py-2 pl-9 pr-3 text-sm placeholder:text-ink-faint focus:border-brand focus:outline-none [&::-webkit-search-cancel-button]:[-webkit-appearance:none]"
         />
       </label>
     </form>

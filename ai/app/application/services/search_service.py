@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import time
+from dataclasses import replace
 from typing import NamedTuple
 
 from app.application.dtos.search_dto import (
@@ -17,9 +18,15 @@ from app.application.dtos.search_dto import (
 from app.application.iservices.isearch_service import ISearchService
 from app.application.llm.embedding_providers import EmbeddingProviders
 from app.application.llm.iembedding_client import EmbeddingError
-from app.application.rerank.ireranker import RERANK_SKIPPED, IReranker, RerankResult
+from app.application.rerank.ireranker import (
+    RERANK_SKIPPED,
+    RERANK_UNAVAILABLE,
+    IReranker,
+    RerankResult,
+)
 from app.application.search.parser import IntentParser, resolve_filters
 from app.application.search.query_cache import query_cache_key
+from app.application.search.relevance import apply_cutoff, resolve_cutoff
 from app.core.config import Settings
 from app.core.container import ScopeFactory, open_scope
 from app.core.index_state import IndexCoverage
@@ -111,10 +118,7 @@ class SearchService(ISearchService):
         )
 
         rerank_started = time.perf_counter()
-        if filters.sort != "relevance":
-            rerank = RerankResult(result.product_ids, outcome=RERANK_SKIPPED)
-            logger.info("rerank skipped q=%r reason=explicit_sort(%s)", query.q, filters.sort)
-        elif len(candidates) != len(result.product_ids):
+        if len(candidates) != len(result.product_ids):
             rerank = RerankResult(result.product_ids, outcome=RERANK_SKIPPED)
             logger.info(
                 "rerank skipped q=%r reason=missing_documents (%d of %d have text)",
@@ -141,8 +145,40 @@ class SearchService(ISearchService):
             if moved:
                 logger.debug("rerank order %s -> %s", before[:8], rerank.product_ids[:8])
 
+        cutoff = resolve_cutoff(
+            intent.language,
+            floor_en=self._settings.RERANK_MIN_SCORE,
+            floor_ar=self._settings.RERANK_MIN_SCORE_AR,
+            gap_ratio=self._settings.RERANK_GAP_RATIO,
+            max_results=self._settings.RERANK_MAX_RESULTS,
+        )
+        outcome = apply_cutoff(rerank.product_ids, rerank.scores, cutoff)
+        ordered_by_relevance = filters.sort == "relevance"
+        if not ordered_by_relevance:
+            kept = set(outcome.product_ids)
+            outcome = replace(outcome, product_ids=[p for p in result.product_ids if p in kept])
+
+        total = result.total
+        if outcome.dropped:
+            total = (result.page - 1) * result.page_size + len(outcome.product_ids)
+            logger.info(
+                "relevance cutoff q=%r language=%s floor=%.3f gap=%.2f kept=%d dropped=%d at=%s",
+                intent.original_query,
+                intent.language,
+                cutoff.floor,
+                cutoff.gap_ratio,
+                len(outcome.product_ids),
+                outcome.dropped,
+                outcome.reason,
+            )
+        reranked = rerank.applied and ordered_by_relevance
+
         mode, degraded_reason = self._classify(
-            intent, result, embedding_failed=embedding.failed, reranked=rerank.applied
+            intent,
+            result,
+            embedding_failed=embedding.failed,
+            reranked=reranked,
+            rerank_outcome=rerank.outcome,
         )
         logger.info(
             "search done q=%r mode=%s degraded=%s returned=%d "
@@ -150,20 +186,20 @@ class SearchService(ISearchService):
             intent.original_query,
             mode,
             degraded_reason or "no",
-            len(rerank.product_ids),
+            len(outcome.product_ids),
             embed_ms,
             retrieve_ms,
             (time.perf_counter() - started) * 1000,
         )
         return SearchResultDTO(
-            product_ids=rerank.product_ids,
-            total=result.total,
+            product_ids=outcome.product_ids,
+            total=total,
             page=result.page,
             page_size=result.page_size,
             query=intent.original_query,
             language=intent.language,
             mode=mode,
-            reranked=rerank.applied,
+            reranked=reranked,
             effective_sort=filters.sort,
             inferred_filters=filters.inferred_filters,
             ignored_inferred=list(filters.ignored_inferred),
@@ -246,6 +282,7 @@ class SearchService(ISearchService):
         *,
         embedding_failed: bool,
         reranked: bool,
+        rerank_outcome: str,
     ) -> tuple[SearchMode, DegradedReason | None]:
         if not intent.normalized_query:
             return "browse", None
@@ -257,4 +294,6 @@ class SearchService(ISearchService):
             return "lexical", "embedding_unavailable"
         if not result.semantic_used:
             return "lexical", "index_incomplete"
-        return ("hybrid_reranked" if reranked else "hybrid"), None
+        if reranked:
+            return "hybrid_reranked", None
+        return "hybrid", ("reranker_unavailable" if rerank_outcome == RERANK_UNAVAILABLE else None)

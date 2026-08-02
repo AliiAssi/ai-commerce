@@ -33,6 +33,8 @@ _CASE_KEYS = frozenset(
         "exact_name",
         "required",
         "excluded",
+        "exhaustive",
+        "max_results",
         "top_k",
         "allow_empty",
         "expect_error",
@@ -67,6 +69,8 @@ class RelevanceCase:
     exact_name: bool = False
     required: tuple[str, ...] = ()
     excluded: tuple[str, ...] = ()
+    exhaustive: bool = False
+    max_results: int | None = None
     top_k: int = _DEFAULT_TOP_K
     allow_empty: bool = False
     expect_error: str | None = None
@@ -75,6 +79,11 @@ class RelevanceCase:
     @property
     def is_gate(self) -> bool:
         return self.source == "spec"
+
+    @property
+    def relevant(self) -> tuple[str, ...]:
+        names = [self.first, *self.required] if self.first else list(self.required)
+        return tuple(dict.fromkeys(name for name in names if name))
 
     @property
     def product_names(self) -> tuple[str, ...]:
@@ -171,6 +180,8 @@ def _build_case(raw: Any, *, index: int) -> RelevanceCase:
         exact_name=bool(raw.get("exact_name", False)),
         required=_as_tuple(raw.get("required"), where=f"case {case_id!r} required"),
         excluded=_as_tuple(raw.get("excluded"), where=f"case {case_id!r} excluded"),
+        exhaustive=bool(raw.get("exhaustive", False)),
+        max_results=int(raw["max_results"]) if raw.get("max_results") is not None else None,
         top_k=int(raw.get("top_k", _DEFAULT_TOP_K)),
         allow_empty=bool(raw.get("allow_empty", False)),
         expect_error=str(raw["expect_error"]) if raw.get("expect_error") else None,
@@ -182,6 +193,7 @@ def _build_case(raw: Any, *, index: int) -> RelevanceCase:
         or case.not_first
         or case.required
         or case.excluded
+        or case.max_results is not None
         or case.expect_filters
         or case.expect_inferred
         or case.allow_empty
@@ -196,6 +208,18 @@ def _build_case(raw: Any, *, index: int) -> RelevanceCase:
         )
     if case.top_k < 1:
         raise CorpusError(f"case {case_id!r} has top_k < 1")
+    if case.max_results is not None and case.max_results < 0:
+        raise CorpusError(f"case {case_id!r} has max_results < 0")
+    if case.exhaustive and not case.relevant:
+        raise CorpusError(
+            f"case {case_id!r} is marked exhaustive but names no relevant product; precision "
+            "would be measured against an empty set"
+        )
+    if case.max_results is not None and case.max_results < len(case.relevant):
+        raise CorpusError(
+            f"case {case_id!r} caps results at {case.max_results} but requires "
+            f"{len(case.relevant)} product(s)"
+        )
     return case
 
 

@@ -14,4 +14,5 @@ class IRelevanceService(ABC):
         label: str,
         include_drafts: bool = True,
         only: Sequence[str] | None = None,
+        enforce_cutoff: bool = False,
     ) -> RelevanceReportDTO: ...

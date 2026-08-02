@@ -85,12 +85,29 @@ def test_ollama_tools_schema_shape() -> None:
         "get_order_status",
         "store_stats",
         "top_rated_products",
-        "low_stock_products",
     } <= names
     search = next(t for t in specs if t["function"]["name"] == "search_products")
     assert search["type"] == "function"
     assert search["function"]["parameters"]["type"] == "object"
     assert "query" in search["function"]["parameters"]["properties"]
+
+
+def test_internal_tools_are_hidden_from_the_shopper_chat() -> None:
+    registry = build_fake_registry()
+    names = {t["function"]["name"] for t in registry.ollama_tools()}
+    assert "low_stock_products" not in names
+
+
+async def test_internal_tool_is_refused_over_chat_but_served_over_mcp() -> None:
+    products = FakeProductReadRepository()
+    products.seed("Alpha Tent", price="100.00")
+    registry = build_fake_registry(products=products)
+
+    with pytest.raises(ToolExecutionError, match="unknown tool"):
+        await registry.execute("low_stock_products", {"n": 5}, CHAT)
+
+    result = await registry.execute("low_stock_products", {"n": 5}, MCP)
+    assert "products" in result
 
 
 async def test_search_tool_holds_no_scope_while_the_search_service_runs() -> None:

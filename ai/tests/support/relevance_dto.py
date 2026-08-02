@@ -12,6 +12,8 @@ FAILURE_EMPTY = "unexpected_results"
 FAILURE_ERROR_EXPECTED = "expected_rejection"
 FAILURE_ERROR_UNEXPECTED = "unexpected_rejection"
 FAILURE_UNKNOWN_PRODUCT = "unknown_product"
+FAILURE_TOO_MANY = "too_many_results"
+FAILURE_IRRELEVANT = "irrelevant_present"
 
 
 class CaseResultDTO(BaseModel):
@@ -29,6 +31,9 @@ class CaseResultDTO(BaseModel):
     reciprocal_rank: float | None = None
     recall_at_k: float | None = None
     ndcg_at_10: float | None = None
+    precision_at_3: float | None = None
+    precision_at_5: float | None = None
+    returned_count: int = 0
     filters_correct: bool | None = None
     exact_name_hit: bool | None = None
 
@@ -48,6 +53,8 @@ class LanguageScoreDTO(BaseModel):
     mrr: float
     recall_at_5: float
     ndcg_at_10: float
+    precision_at_3: float
+    precision_at_5: float
     filter_precision: float
     exact_name_rate: float
 

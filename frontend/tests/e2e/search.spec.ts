@@ -81,10 +81,10 @@ test.describe("interpreted filters", () => {
     await search(page, "housewarming gift from Bcharre under $30");
     const narrow = await plates(page).count();
 
-    await page.getByTestId("chip-origin").click();
+    await page.getByTestId("chip-max_price").click();
 
-    await expect(page.getByTestId("chip-origin")).toHaveCount(0);
-    await expect(page.getByTestId("chip-max_price")).toBeVisible();
+    await expect(page.getByTestId("chip-max_price")).toHaveCount(0);
+    await expect(page.getByTestId("chip-origin")).toBeVisible();
     expect(await plates(page).count()).toBeGreaterThan(narrow);
   });
 
@@ -100,7 +100,12 @@ test.describe("interpreted filters", () => {
     await expect(page).toHaveURL(/q=/);
   });
 
-  test("a suppressed inference survives a category link", async ({ page }) => {
+  /**
+   * Picking a category is a browse gesture, so it ends the search rather than intersecting
+   * with it. `ignore_inferred` goes with it: those names refer to inferences drawn from `q`,
+   * so keeping them without `q` would leave suppressions with nothing left to suppress.
+   */
+  test("a category link clears the search term", async ({ page }) => {
     await search(page, "gift from Bcharre under $30");
     await page.getByTestId("chip-origin").click();
     // Wait for the chip's navigation to land, or the category link clicked below is still the
@@ -113,8 +118,35 @@ test.describe("interpreted filters", () => {
       .click();
 
     await expect(page).toHaveURL(/category=woodwork/);
-    await expect(page).toHaveURL(/ignore_inferred=origin/);
-    await expect(page).toHaveURL(/q=/);
+    await expect(page).not.toHaveURL(/[?&]q=/);
+    await expect(page).not.toHaveURL(/ignore_inferred/);
+    await expect(page).not.toHaveURL(/sort=relevance/);
+  });
+
+  test("explicit filters survive a category link even though the term does not", async ({
+    page,
+  }) => {
+    await page.goto("/catalog?q=soap&max_price=30&in_stock_only=true");
+
+    await page
+      .locator("aside")
+      .getByRole("link", { name: /^Cedar/ })
+      .click();
+
+    await expect(page).toHaveURL(/category=woodwork/);
+    await expect(page).toHaveURL(/max_price=30/);
+    await expect(page).toHaveURL(/in_stock_only=true/);
+    await expect(page).not.toHaveURL(/[?&]q=/);
+  });
+
+  test("the search term has its own chip that clears only the term", async ({ page }) => {
+    await page.goto("/catalog?q=soap&max_price=30");
+
+    await expect(page.getByTestId("active-chip-q")).toBeVisible();
+    await page.getByTestId("active-chip-q").click();
+
+    await expect(page).not.toHaveURL(/[?&]q=/);
+    await expect(page).toHaveURL(/max_price=30/);
   });
 });
 
@@ -160,15 +192,13 @@ test.describe("relevance sorting", () => {
 
 test.describe("preserved state", () => {
   test("a query survives pagination", async ({ page }) => {
-    // Deliberately a broad multi-word query: the lexical leg ORs its terms, so this matches
-    // well past one page of 12 and the Next link is always there. A narrower query made this
-    // test skip itself, which quietly left §5.3's "pagination preserves the query" unproven.
-    await search(page, "something for a Lebanese coffee ritual");
+    await search(page, "lebanese");
+    await expect(page.getByRole("link", { name: /Next/ })).toBeVisible();
 
     await page.getByRole("link", { name: /Next/ }).click();
 
     await expect(page).toHaveURL(/page=2/);
-    await expect(page).toHaveURL(/q=/);
+    await expect(page).toHaveURL(/q=lebanese/);
     await expect(plates(page).first()).toBeVisible();
   });
 

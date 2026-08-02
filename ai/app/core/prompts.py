@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -13,7 +14,11 @@ REQUIRED_KEYS = (
     "chat.session_limit_reply",
     "mcp.shopping_assistant",
     "errors.llm_unavailable",
+    "errors.tool_loop_limit",
+    "errors.empty_reply",
 )
+
+_PLACEHOLDER = re.compile(r"\{([A-Za-z_][A-Za-z0-9_]*)\}")
 
 
 class PromptLibrary:
@@ -24,7 +29,14 @@ class PromptLibrary:
         template = self._prompts.get(key)
         if template is None:
             raise KeyError(f"unknown prompt key {key!r}")
-        return template.format(**placeholders).strip()
+        rendered = _PLACEHOLDER.sub(
+            lambda m: str(placeholders[m.group(1)]) if m.group(1) in placeholders else m.group(0),
+            template,
+        )
+        unfilled = sorted(set(_PLACEHOLDER.findall(rendered)))
+        if unfilled:
+            raise KeyError(f"prompt {key!r} is missing placeholders: {', '.join(unfilled)}")
+        return rendered.strip()
 
 
 def _flatten(node: Any, prefix: str = "") -> dict[str, str]:

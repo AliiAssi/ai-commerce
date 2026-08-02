@@ -42,9 +42,18 @@ cases:
     expect_filters: {origin_key: tripoli}
     required: [Tripoli Olive Oil Soap, "Laurel and Olive Soap, aged nine months"]
     top_k: 5
+    exhaustive: true
+    max_results: 2
     note: >-
       The catalog spells this origin two ways — "Tripoli" and "Tripoli, North Lebanon" — so the
-      place hierarchy has to resolve both or one of the two soaps disappears.
+      place hierarchy has to resolve both or one of the two soaps disappears. Tripoli is also
+      where the baklava is made, so the origin filter alone cannot answer this: the relevance
+      cutoff has to drop the one Tripoli product that is not a soap.
+
+      The baklava is deliberately NOT listed under `excluded`. That assertion holds on every
+      run, including the degraded module where no reranker exists to drop it — which would fail
+      this case for the absence of a feature that module exists to measure the absence of.
+      `exhaustive` says the same thing and is scored only where the cutoff is live.
 
   - id: en-housewarming-bcharre
     query: housewarming gift under $30 from Bcharre
@@ -65,8 +74,19 @@ cases:
     section: "15.1"
     expect_filters: {in_stock_only: true}
     first: Pomegranate Molasses
+    exhaustive: true
+    max_results: 4
     excluded: [Single-Origin Sumac]
-    note: Sumac is the better semantic match and is sold out; availability must beat relevance.
+    note: >-
+      Sumac is the better semantic match and is sold out; availability must beat relevance —
+      that exclusion holds on every run, because the stock filter needs no reranker.
+
+      The 2026-08-01 smoke test saw ten products here: a basket, tumblers, a pitcher, a vase,
+      soaps and napkins filled ranks 4-10. Trigram matched them weakly, the reranker sorted
+      them to the bottom, and every one was still returned — ordering a tail is not removing
+      it. Those products are deliberately NOT listed under `excluded`: that assertion is scored
+      on every run, including the degraded module where nothing exists to drop them.
+      `exhaustive` and `max_results` say the same thing where the cutoff is actually live.
 
   - id: en-glass-south-lebanon
     query: handmade recycled glass drinkware from south Lebanon
@@ -166,7 +186,11 @@ cases:
     section: "15.2"
     required: [Pomegranate Molasses]
     top_k: 2
-    note: No availability was requested, so sumac may legitimately appear alongside it.
+    note: >-
+      No availability was requested, so sumac may legitimately appear alongside it. No result cap
+      here: RERANK_MIN_SCORE_AR still has to be calibrated against a real multilingual reranker,
+      and the deterministic scorer the cutoff module uses cannot judge Arabic against an English
+      catalog.
 
   - id: ar-recycled-glass-tumblers
     query: طقم كاسات زجاج معاد تدويره

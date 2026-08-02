@@ -13,6 +13,7 @@ class ToolSpec:
     params_model: type[BaseModel]
     customer_scoped: bool = False
     opens_own_scope: bool = False
+    internal: bool = False
 
 
 @dataclass(frozen=True)

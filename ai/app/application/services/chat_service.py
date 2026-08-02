@@ -125,9 +125,13 @@ class ChatService(IChatService):
             return
         except AgentLoopLimitError:
             yield ChatStreamEventDTO(
-                type="error", message="Sorry — I couldn't work that out. Please try rephrasing."
+                type="error", message=self._prompts.render("errors.tool_loop_limit")
             )
             return
+
+        if not answer.strip():
+            answer = self._prompts.render("errors.empty_reply")
+            yield ChatStreamEventDTO(type="token", text=answer)
 
         await self._persist(session.id, message, answer, calls_made)
         self._events.publish(

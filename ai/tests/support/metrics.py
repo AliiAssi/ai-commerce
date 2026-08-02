@@ -19,6 +19,14 @@ def recall_at_k(ranked_ids: Sequence[int], required_ids: Sequence[int], k: int) 
     return found / len(required_ids)
 
 
+def precision_at_k(ranked_ids: Sequence[int], relevant_ids: Sequence[int], k: int) -> float:
+    window = ranked_ids[:k]
+    if not window:
+        return 1.0
+    relevant = set(relevant_ids)
+    return sum(1 for product_id in window if product_id in relevant) / len(window)
+
+
 def dcg_at_k(ranked_ids: Sequence[int], relevant_ids: Sequence[int], k: int) -> float:
     relevant = set(relevant_ids)
     return sum(
