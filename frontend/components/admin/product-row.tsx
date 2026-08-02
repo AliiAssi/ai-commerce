@@ -7,7 +7,7 @@ import { useToast } from "@/components/providers/toast-provider";
 import { Badge, StockBadge } from "@/components/ui/badge";
 import { Button, LinkButton } from "@/components/ui/button";
 import { Price } from "@/components/ui/price";
-import { ProductImage } from "@/components/ui/product-image";
+import { ProductThumb } from "@/components/ui/product-image";
 import { FLASH_MS, useTransient } from "@/lib/client/use-transient";
 import { adjustStock, setArchived } from "@/lib/actions/admin";
 import type { Product } from "@/lib/api/types";
@@ -49,10 +49,11 @@ export function ProductRow({ product: initial }: { product: Product }) {
     <tr className={cn(product.is_archived && "opacity-60", changed && "flash")}>
       <td className="px-4 py-3">
         <div className="flex items-center gap-3">
-          <ProductImage
+          <ProductThumb
             src={product.image_url}
             alt=""
-            className="h-10 w-10 rounded-el bg-surface-alt object-cover"
+            size={40}
+            className="h-10 w-10 rounded-el bg-surface-alt"
           />
           <div className="min-w-0">
             <Link

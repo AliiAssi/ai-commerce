@@ -15,7 +15,7 @@ const USER_KEY = "ai_chat_user";
 // the visitor about it if the wait actually becomes noticeable.
 const WAKE_NOTICE_MS = 2500;
 const WAKE_NOTICE = "Waking the assistant up, this can take up to a minute…";
-const GENERIC_ERROR = "The assistant is unavailable right now — please try again in a moment.";
+const GENERIC_ERROR = "The assistant is unavailable right now, please try again in a moment.";
 const MAX_INPUT_HEIGHT = 128;
 
 const TOOL_LABELS: Record<string, string> = {

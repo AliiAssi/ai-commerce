@@ -8,7 +8,7 @@ import { LinkButton } from "@/components/ui/button";
 import { InlineNote } from "@/components/ui/inline-note";
 import { EmptyState } from "@/components/ui/panel";
 import { Price } from "@/components/ui/price";
-import { ProductImage } from "@/components/ui/product-image";
+import { ProductThumb } from "@/components/ui/product-image";
 import { removeFromBag, setQuantity } from "@/lib/actions/cart";
 import type { Cart } from "@/lib/api/types";
 
@@ -84,10 +84,11 @@ export function CartItems({ initialCart }: { initialCart: Cart }) {
       <ul className="divide-y divide-border rounded-card border border-border bg-surface shadow-card">
         {cart.items.map((item) => (
           <li key={item.product_id} className="flex items-center gap-4 p-4">
-            <ProductImage
+            <ProductThumb
               src={item.image_url}
               alt=""
-              className="h-16 w-16 rounded-el bg-surface-alt object-cover"
+              size={64}
+              className="h-16 w-16 rounded-el bg-surface-alt"
             />
             <div className="min-w-0 flex-1">
               <Link

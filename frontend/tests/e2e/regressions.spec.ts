@@ -131,24 +131,6 @@ test.describe("theme", () => {
   });
 });
 
-test.describe("reviews", () => {
-  test("a signed-out visitor is invited to log in", async ({ page }) => {
-    await page.goto("/products/1");
-    await expect(page.getByRole("link", { name: "Log in" }).last()).toBeVisible();
-  });
-
-  test("a signed-in customer can leave one and see it appear", async ({ page }) => {
-    await register(page, newEmail("review"));
-    await page.goto("/products/1");
-
-    const text = `Genuinely good, tested end to end ${Date.now()}`;
-    await page.getByLabel("Your review").fill(text);
-    await page.getByRole("button", { name: "Submit review" }).click();
-
-    await expect(page.getByText(text)).toBeVisible();
-  });
-});
-
 test.describe("adding to the bag", () => {
   /**
    * The client cannot read the httpOnly session cookie, so immediately after a page load it

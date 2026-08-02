@@ -1,6 +1,10 @@
 from __future__ import annotations
 
-from app.application.dtos.review_dto import ReviewDTO
+from app.application.dtos.review_dto import (
+    ReviewDTO,
+    ReviewEligibilityDTO,
+    ReviewIneligibility,
+)
 from app.application.events.bus import EventBus
 from app.application.events.definitions import ReviewCreated
 from app.application.iservices.ireview_service import IReviewService
@@ -39,6 +43,29 @@ class ReviewService(IReviewService):
             ReviewCreated(review_id=review.id, product_id=product_id, user_id=user_id)
         )
         return review
+
+    async def eligibility(self, user_id: int | None, product_id: int) -> ReviewEligibilityDTO:
+        product = await self._products.get(product_id)
+        if product is None or product.is_archived:
+            raise NotFoundError("Product not found")
+
+        if user_id is None:
+            return ReviewEligibilityDTO(
+                can_review=False, reason=ReviewIneligibility.NOT_AUTHENTICATED
+            )
+
+        existing = await self._reviews.get_by_user(product_id, user_id)
+        if existing is not None:
+            return ReviewEligibilityDTO(
+                can_review=False,
+                reason=ReviewIneligibility.ALREADY_REVIEWED,
+                review=existing,
+            )
+
+        if not await self._orders.user_purchased_product(user_id, product_id):
+            return ReviewEligibilityDTO(can_review=False, reason=ReviewIneligibility.NOT_PURCHASED)
+
+        return ReviewEligibilityDTO(can_review=True)
 
     async def list_for_product(self, product_id: int) -> list[ReviewDTO]:
         product = await self._products.get(product_id)

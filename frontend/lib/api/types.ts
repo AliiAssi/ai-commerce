@@ -93,6 +93,16 @@ export interface Review {
   created_at: string;
 }
 
+export type ReviewIneligibility = "not_authenticated" | "not_purchased" | "already_reviewed";
+
+export interface ReviewEligibility {
+  can_review: boolean;
+  /** null when the caller may review; otherwise which guard refused them. */
+  reason: ReviewIneligibility | null;
+  /** The caller's own review, present only with `already_reviewed`. */
+  review: Review | null;
+}
+
 export interface User {
   id: number;
   email: string;

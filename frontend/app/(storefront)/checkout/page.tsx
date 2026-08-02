@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 
 import { PlaceOrderButton } from "@/components/cart/place-order-button";
 import { Price } from "@/components/ui/price";
-import { ProductImage } from "@/components/ui/product-image";
+import { ProductThumb } from "@/components/ui/product-image";
 import { getCart } from "@/lib/api/cart";
 import { getToken } from "@/lib/auth/session";
 
@@ -26,10 +26,11 @@ export default async function CheckoutPage() {
         <ul className="divide-y divide-border rounded-card border border-border bg-surface shadow-card">
           {cart.items.map((item) => (
             <li key={item.product_id} className="flex items-center gap-4 p-4">
-              <ProductImage
+              <ProductThumb
                 src={item.image_url}
                 alt=""
-                className="h-12 w-12 rounded-el bg-surface-alt object-cover"
+                size={48}
+                className="h-12 w-12 rounded-el bg-surface-alt"
               />
               <div className="min-w-0 flex-1">
                 <p className="font-medium">{item.product_name}</p>

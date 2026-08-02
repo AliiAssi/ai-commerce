@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
 import { CancelOrderButton } from "@/components/account/cancel-order-button";
+import { ReviewComposer } from "@/components/product/review-composer";
 import { StatusBadge } from "@/components/ui/badge";
 import { Price } from "@/components/ui/price";
 import { ApiError } from "@/lib/api/client";
@@ -48,19 +49,28 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
 
       <ul className="mt-6 divide-y divide-border rounded-card border border-border bg-surface shadow-card">
         {order.items.map((item) => (
-          <li key={item.product_id} className="flex items-center justify-between gap-4 p-4">
-            <div>
-              <Link
-                href={`/products/${item.product_id}`}
-                className="font-medium hover:text-brand"
-              >
-                {item.product_name}
-              </Link>
-              <p className="text-xs text-ink-muted">
-                {item.quantity} &times; <Price value={item.unit_price} size="sm" />
-              </p>
+          <li key={item.product_id} className="flex flex-col gap-3 p-4">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <Link
+                  href={`/products/${item.product_id}`}
+                  className="font-medium hover:text-brand"
+                >
+                  {item.product_name}
+                </Link>
+                <p className="text-xs text-ink-muted">
+                  {item.quantity} &times; <Price value={item.unit_price} size="sm" />
+                </p>
+              </div>
+              <Price value={item.line_total} size="sm" />
             </div>
-            <Price value={item.line_total} size="sm" />
+            {/* This is the post-purchase moment the review belongs to. Owning the order is
+                itself the proof, so the composer here can never be refused. */}
+            <ReviewComposer
+              productId={item.product_id}
+              productName={item.product_name}
+              compact
+            />
           </li>
         ))}
         <li className="flex items-center justify-between p-4">

@@ -83,6 +83,17 @@ export function QuickAdd({
   );
 }
 
+/** The mobile bar's control: one tap, quantity 1, the same confirmation as the full form. */
+export function BarAdd({ productId }: { productId: number }) {
+  const { add, pending, added } = useAdd(productId);
+
+  return (
+    <Button type="button" onClick={() => add(1)} disabled={pending}>
+      {added ? "Added ✓" : "Add to bag"}
+    </Button>
+  );
+}
+
 /** The product page's quantity picker and Add to bag button. */
 export function AddToBagForm({ productId, stock }: { productId: number; stock: number }) {
   const [quantity, setQuantity] = useState(1);

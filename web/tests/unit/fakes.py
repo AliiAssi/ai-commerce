@@ -425,6 +425,16 @@ class FakeReviewRepository(IReviewRepository):
             r.product_id == product_id and r.user_id == user_id for r in self._reviews.values()
         )
 
+    async def get_by_user(self, product_id: int, user_id: int) -> ReviewDTO | None:
+        return next(
+            (
+                r
+                for r in self._reviews.values()
+                if r.product_id == product_id and r.user_id == user_id
+            ),
+            None,
+        )
+
     async def rating_stats(self, product_id: int) -> tuple[Decimal, int]:
         ratings = [r.rating for r in self._reviews.values() if r.product_id == product_id]
         if not ratings:

@@ -43,7 +43,7 @@ const COPY: Record<CopyLang, Copy> = {
     interpretedLabel: "We read your search as",
     removeFilter: (label) => `Remove filter: ${label}`,
     degradedNotice:
-      "Showing basic keyword matches — the smarter search is briefly unavailable.",
+      "Showing basic matches because the smarter search is currently unavailable.",
     noResults: {
       title: "No matches for that search",
       body: "Try different words, or fewer of them.",

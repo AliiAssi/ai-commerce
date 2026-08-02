@@ -5,6 +5,7 @@ from decimal import Decimal
 import pytest
 
 from app.application.dtos.order_dto import OrderItemCreateDTO
+from app.application.dtos.review_dto import ReviewIneligibility
 from app.application.events.bus import EventBus
 from app.application.services.review_service import ReviewService
 from app.core.exceptions import ConflictError, ForbiddenError, NotFoundError
@@ -93,3 +94,76 @@ async def test_average_over_multiple_reviewers(service, products, orders, users)
     updated = await products.get(p.id)
     assert updated.rating_avg == Decimal("3.50")
     assert updated.review_count == 2
+
+
+async def test_eligibility_reports_a_signed_out_caller_without_a_401(service, products):
+    p = products.seed("Widget")
+    result = await service.eligibility(None, p.id)
+    assert result.can_review is False
+    assert result.reason is ReviewIneligibility.NOT_AUTHENTICATED
+    assert result.review is None
+
+
+async def test_eligibility_refuses_a_signed_in_non_purchaser(service, products, users):
+    user = await users.create("a@x.test", "h", "customer")
+    p = products.seed("Widget")
+    result = await service.eligibility(user.id, p.id)
+    assert result.can_review is False
+    assert result.reason is ReviewIneligibility.NOT_PURCHASED
+
+
+async def test_eligibility_admits_a_purchaser_who_has_not_reviewed(
+    service, products, orders, users
+):
+    user = await users.create("a@x.test", "h", "customer")
+    p = products.seed("Widget")
+    await _purchase(orders, user.id, p)
+
+    result = await service.eligibility(user.id, p.id)
+    assert result.can_review is True
+    assert result.reason is None
+
+
+async def test_eligibility_returns_the_review_the_caller_already_wrote(
+    service, products, orders, users
+):
+    user = await users.create("a@x.test", "h", "customer")
+    p = products.seed("Widget")
+    await _purchase(orders, user.id, p)
+    created = await service.create(user.id, p.id, 5, "Excellent.")
+
+    result = await service.eligibility(user.id, p.id)
+    assert result.can_review is False
+    assert result.reason is ReviewIneligibility.ALREADY_REVIEWED
+    assert result.review is not None
+    assert result.review.id == created.id
+    assert result.review.rating == 5
+
+
+async def test_eligibility_matches_what_create_would_do(service, products, orders, users):
+    """The endpoint exists to predict `create`; a disagreement is the bug it must not have."""
+    user = await users.create("a@x.test", "h", "customer")
+    p = products.seed("Widget")
+
+    assert (await service.eligibility(user.id, p.id)).can_review is False
+    with pytest.raises(ForbiddenError):
+        await service.create(user.id, p.id, 4, "Nice one.")
+
+    await _purchase(orders, user.id, p)
+    assert (await service.eligibility(user.id, p.id)).can_review is True
+    await service.create(user.id, p.id, 4, "Nice one.")
+
+    assert (await service.eligibility(user.id, p.id)).can_review is False
+    with pytest.raises(ConflictError):
+        await service.create(user.id, p.id, 4, "Again.")
+
+
+async def test_eligibility_404s_on_an_unknown_product(service):
+    with pytest.raises(NotFoundError):
+        await service.eligibility(None, 999)
+
+
+async def test_eligibility_404s_on_an_archived_product(service, products):
+    p = products.seed("Gone", archived=True)
+    with pytest.raises(NotFoundError):
+        await service.eligibility(None, p.id)

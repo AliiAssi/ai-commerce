@@ -58,7 +58,7 @@ _WARM_INTERVAL = 30.0
 # A platform still bringing the instance up answers with these before the app is live.
 _RETRY_STATUSES = frozenset({502, 503, 504})
 
-_UNAVAILABLE = "The assistant is unavailable right now — please try again in a moment."
+_UNAVAILABLE = "The assistant is unavailable right now, please try again in a moment."
 
 
 def _error_frame(message: str) -> bytes:

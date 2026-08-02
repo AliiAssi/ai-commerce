@@ -1,7 +1,14 @@
 import "server-only";
 
 import { apiFetch, CATALOG_CACHE, NO_CACHE } from "./client";
-import type { Category, ProductPage, Product, Review, SortOption } from "./types";
+import type {
+  Category,
+  ProductPage,
+  Product,
+  Review,
+  ReviewEligibility,
+  SortOption,
+} from "./types";
 
 export interface ProductSearch {
   q?: string;
@@ -48,6 +55,14 @@ export function listCategories() {
 
 export function listReviews(productId: number) {
   return apiFetch<Review[]>(`/products/${productId}/reviews`, { cache: CATALOG_CACHE });
+}
+
+/** Per-caller, so never cached. Answers without a token too — signed out is a reason, not a 401. */
+export function getReviewEligibility(productId: number, token: string | null) {
+  return apiFetch<ReviewEligibility>(`/products/${productId}/reviews/eligibility`, {
+    token,
+    cache: NO_CACHE,
+  });
 }
 
 export function createReview(
