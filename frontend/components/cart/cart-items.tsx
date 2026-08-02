@@ -4,32 +4,28 @@ import Link from "next/link";
 import { useState, useTransition } from "react";
 
 import { setCartQuantity } from "@/lib/client/session-store";
-import { useToast } from "@/components/providers/toast-provider";
 import { LinkButton } from "@/components/ui/button";
+import { InlineNote } from "@/components/ui/inline-note";
 import { EmptyState } from "@/components/ui/panel";
 import { Price } from "@/components/ui/price";
 import { ProductImage } from "@/components/ui/product-image";
 import { removeFromBag, setQuantity } from "@/lib/actions/cart";
 import type { Cart } from "@/lib/api/types";
 
-/**
- * Optimistic by hand rather than with useOptimistic: the server returns the whole recomputed
- * cart (line totals, grand total, stock), so the win is showing the new numbers instantly and
- * then replacing them with the server's — not merely reordering a list. On failure the
- * previous cart is restored and the reason is toasted, which is what HTMX's error path did.
- */
 export function CartItems({ initialCart }: { initialCart: Cart }) {
   const [cart, setCart] = useState(initialCart);
+  const [failed, setFailed] = useState<{ productId: number; message: string } | null>(null);
   const [pending, startTransition] = useTransition();
-  const toast = useToast();
 
   const apply = (
+    productId: number,
     optimistic: Cart,
     run: () => Promise<{ ok: boolean; data?: Cart; error?: string }>,
   ) => {
     const previous = cart;
     setCart(optimistic);
     setCartQuantity(optimistic.total_quantity);
+    setFailed(null);
 
     startTransition(async () => {
       const result = await run();
@@ -40,7 +36,7 @@ export function CartItems({ initialCart }: { initialCart: Cart }) {
       }
       setCart(previous);
       setCartQuantity(previous.total_quantity);
-      toast(result.error ?? "That didn't work", "danger");
+      setFailed({ productId, message: result.error ?? "That didn't work" });
     });
   };
 
@@ -64,12 +60,12 @@ export function CartItems({ initialCart }: { initialCart: Cart }) {
           }
         : item,
     );
-    apply(recompute(items), () => setQuantity(productId, quantity));
+    apply(productId, recompute(items), () => setQuantity(productId, quantity));
   };
 
   const remove = (productId: number) => {
     const items = cart.items.filter((item) => item.product_id !== productId);
-    apply(recompute(items), () => removeFromBag(productId));
+    apply(productId, recompute(items), () => removeFromBag(productId));
   };
 
   if (cart.items.length === 0) {
@@ -109,6 +105,11 @@ export function CartItems({ initialCart }: { initialCart: Cart }) {
                   </>
                 )}
               </p>
+              {failed?.productId === item.product_id && (
+                <InlineNote className="mt-1" data-testid="cart-line-error">
+                  {failed.message}
+                </InlineNote>
+              )}
             </div>
             <input
               type="number"

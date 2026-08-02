@@ -1,17 +1,22 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import { setCartQuantity, useSession } from "@/lib/client/session-store";
+import { useTransient } from "@/lib/client/use-transient";
 import { useToast } from "@/components/providers/toast-provider";
 import { Button } from "@/components/ui/button";
+import { InlineNote } from "@/components/ui/inline-note";
 import { Spinner } from "@/components/ui/spinner";
 import { addToBag } from "@/lib/actions/cart";
 import { UNAUTHENTICATED } from "@/lib/actions/codes";
+import { cn } from "@/lib/cn";
 
 function useAdd(productId: number) {
   const [pending, startTransition] = useTransition();
+  const [added, confirmAdded] = useTransient();
   const { cartQuantity, user, loaded } = useSession();
   const toast = useToast();
   const router = useRouter();
@@ -34,7 +39,9 @@ function useAdd(productId: number) {
       const result = await addToBag(productId, quantity);
       if (result.ok) {
         setCartQuantity(result.data.total_quantity);
-        toast("Added to your bag", "success");
+        // The badge has already moved and the control says so itself; a toast on top of two
+        // existing signals is the noise this pass removes.
+        confirmAdded();
         return;
       }
       setCartQuantity(cartQuantity);
@@ -43,7 +50,7 @@ function useAdd(productId: number) {
     });
   };
 
-  return { add, pending };
+  return { add, pending, added };
 }
 
 /** The quick-add control that surfaces on a catalogue plate on hover or focus. */
@@ -54,7 +61,7 @@ export function QuickAdd({
   productId: number;
   productName: string;
 }) {
-  const { add, pending } = useAdd(productId);
+  const { add, pending, added } = useAdd(productId);
 
   return (
     <button
@@ -62,9 +69,16 @@ export function QuickAdd({
       onClick={() => add(1)}
       disabled={pending}
       aria-label={`Add ${productName} to bag`}
-      className="plate-add absolute right-2.5 bottom-2.5 grid h-9 w-9 place-items-center rounded-el border border-border bg-surface text-ink transition-colors hover:border-brand hover:bg-brand hover:text-brand-contrast"
+      data-added={added || undefined}
+      className={cn(
+        "plate-add absolute right-2.5 bottom-2.5 grid h-9 w-9 place-items-center rounded-el border transition-colors",
+        added
+          ? "border-success bg-success text-brand-contrast"
+          : "border-border bg-surface text-ink hover:border-brand hover:bg-brand hover:text-brand-contrast",
+      )}
     >
-      <span aria-hidden="true">+</span>
+      <span aria-hidden="true">{added ? "✓" : "+"}</span>
+      {added && <span className="sr-only">Added to your bag</span>}
     </button>
   );
 }
@@ -72,7 +86,7 @@ export function QuickAdd({
 /** The product page's quantity picker and Add to bag button. */
 export function AddToBagForm({ productId, stock }: { productId: number; stock: number }) {
   const [quantity, setQuantity] = useState(1);
-  const { add, pending } = useAdd(productId);
+  const { add, pending, added } = useAdd(productId);
 
   return (
     <div className="flex items-center gap-4 pt-1">
@@ -86,9 +100,16 @@ export function AddToBagForm({ productId, stock }: { productId: number; stock: n
         className="w-20 rounded-el border border-border bg-surface px-3 py-2.5 text-center text-sm focus:border-brand focus:outline-none"
       />
       <Button type="button" size="lg" onClick={() => add(quantity)} disabled={pending}>
-        Add to bag
+        {added ? "Added ✓" : "Add to bag"}
       </Button>
       {pending && <Spinner />}
+      {added && (
+        <InlineNote tone="success">
+          <Link href="/cart" className="underline hover:text-brand">
+            View your bag
+          </Link>
+        </InlineNote>
+      )}
     </div>
   );
 }

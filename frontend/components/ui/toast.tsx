@@ -11,7 +11,11 @@ const VARIANTS = {
 
 export type ToastVariant = keyof typeof VARIANTS;
 
-/** Presentational only. The provider that queues and auto-dismisses these lands in Phase 3. */
+/**
+ * Presentational only; the provider queues and dismisses these, and owns the live region.
+ * Reserved for failures that belong to the page rather than to one control — everything a
+ * control can report itself now says so in place, via <InlineNote> or its own label.
+ */
 export function Toast({
   children,
   variant = "info",
@@ -28,7 +32,6 @@ export function Toast({
         VARIANTS[variant],
         leaving && "toast-out",
       )}
-      role="status"
       data-toast
     >
       {children}

@@ -52,7 +52,16 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={push}>
       {children}
-      <div id="toasts">
+      {/* The region is mounted for the life of the app. A live region only announces what
+          lands *inside* an already-present one, so putting the role on each toast — which by
+          definition arrives with its text — meant nothing was reliably read out. */}
+      <div
+        id="toasts"
+        role="region"
+        aria-label="Notifications"
+        aria-live="polite"
+        aria-atomic="false"
+      >
         {toasts.map((toast) => (
           <Toast key={toast.id} variant={toast.variant} leaving={toast.leaving}>
             {toast.message}

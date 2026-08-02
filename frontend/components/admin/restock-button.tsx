@@ -6,6 +6,7 @@ import { useTransition } from "react";
 import { useToast } from "@/components/providers/toast-provider";
 import { Button } from "@/components/ui/button";
 import { adjustStock } from "@/lib/actions/admin";
+import { useTransient } from "@/lib/client/use-transient";
 
 /** The dashboard's one-click restock on a low-stock row. */
 export function RestockButton({
@@ -15,6 +16,7 @@ export function RestockButton({
   productId: number;
   delta?: number;
 }) {
+  const [done, confirmDone] = useTransient();
   const [pending, startTransition] = useTransition();
   const toast = useToast();
   const router = useRouter();
@@ -28,8 +30,9 @@ export function RestockButton({
       onClick={() =>
         startTransition(async () => {
           const result = await adjustStock(productId, delta);
+          // the refresh redraws the row with the new stock; the tick only marks which button
           if (result.ok) {
-            toast(`Stock set to ${result.data.stock}`, "success");
+            confirmDone();
             router.refresh();
           } else {
             toast(result.error, "danger");
@@ -37,7 +40,7 @@ export function RestockButton({
         })
       }
     >
-      +{delta}
+      {done ? "✓" : `+${delta}`}
     </Button>
   );
 }

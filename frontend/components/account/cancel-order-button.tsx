@@ -1,15 +1,15 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 
-import { useToast } from "@/components/providers/toast-provider";
 import { Button } from "@/components/ui/button";
+import { InlineNote } from "@/components/ui/inline-note";
 import { cancel } from "@/lib/actions/orders";
 
 export function CancelOrderButton({ orderId }: { orderId: number }) {
+  const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
-  const toast = useToast();
   const router = useRouter();
 
   const onClick = () => {
@@ -17,11 +17,13 @@ export function CancelOrderButton({ orderId }: { orderId: number }) {
 
     startTransition(async () => {
       const result = await cancel(orderId);
+      // The refresh flips the status badge to Cancelled and takes this button away, which
+      // says more than a toast repeating what the page now shows.
       if (result.ok) {
-        toast(`Order #${orderId} cancelled`, "success");
+        setError(null);
         router.refresh();
       } else {
-        toast(result.error, "danger");
+        setError(result.error);
       }
     });
   };
@@ -31,7 +33,11 @@ export function CancelOrderButton({ orderId }: { orderId: number }) {
       <Button type="button" variant="danger-outline" onClick={onClick} disabled={pending}>
         {pending ? "Cancelling…" : "Cancel order"}
       </Button>
-      <p className="mt-2 text-xs text-ink-faint">Orders can be cancelled until they ship.</p>
+      {error ? (
+        <InlineNote className="mt-2">{error}</InlineNote>
+      ) : (
+        <p className="mt-2 text-xs text-ink-faint">Orders can be cancelled until they ship.</p>
+      )}
     </div>
   );
 }
