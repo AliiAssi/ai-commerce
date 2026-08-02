@@ -107,6 +107,20 @@ textarea:focus-visible {
   transform: none;
 }
 
+/* A row that just changed. The updated value is the real feedback; this only says where to
+   look, so losing it to reduced-motion costs nothing. */
+.flash {
+  animation: flash-tint var(--motion-slow) ease-out;
+}
+@keyframes flash-tint {
+  from {
+    background-color: rgb(var(--c-success-subtle));
+  }
+  to {
+    background-color: transparent;
+  }
+}
+
 .skeleton {
   animation: skeleton-pulse var(--motion-slow) ease-in-out infinite;
 }

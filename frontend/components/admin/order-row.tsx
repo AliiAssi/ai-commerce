@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Price } from "@/components/ui/price";
 import type { AdminOrder } from "@/lib/api/types";
 import { advanceOrder } from "@/lib/actions/admin";
+import { FLASH_MS, useTransient } from "@/lib/client/use-transient";
+import { cn } from "@/lib/cn";
 import { formatDateTime } from "@/lib/format";
 
 // Only paid and shipped orders can move; delivered and cancelled are terminal.
@@ -18,6 +20,7 @@ const NEXT_STATUS: Partial<Record<AdminOrder["status"], string>> = {
 
 export function OrderRow({ order: initial }: { order: AdminOrder }) {
   const [order, setOrder] = useState(initial);
+  const [changed, flash] = useTransient(FLASH_MS);
   const [pending, startTransition] = useTransition();
   const toast = useToast();
 
@@ -29,14 +32,15 @@ export function OrderRow({ order: initial }: { order: AdminOrder }) {
       if (result.ok) {
         // the API returns the customer-facing Order, which has no user_email — keep ours
         setOrder({ ...order, ...result.data });
-        toast(`Order #${order.id} marked ${result.data.status}`, "success");
+        // the badge beside the button now reads the new status; that is the confirmation
+        flash();
       } else {
         toast(result.error, "danger");
       }
     });
 
   return (
-    <tr>
+    <tr className={cn(changed && "flash")}>
       <td className="px-4 py-3 font-medium">#{order.id}</td>
       <td className="max-w-56 truncate px-4 py-3 text-ink-muted">{order.user_email}</td>
       <td className="px-4 py-3 whitespace-nowrap text-ink-muted">

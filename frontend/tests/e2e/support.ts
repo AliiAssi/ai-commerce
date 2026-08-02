@@ -60,10 +60,11 @@ export async function addFirstProductToBag(page: Page): Promise<string> {
   await page.goto("/catalog");
   const plate = page.locator("article.plate").first();
   const name = (await plate.getByRole("link").nth(1).innerText()).trim();
+  const add = plate.getByRole("button", { name: /Add .* to bag/ });
   await plate.hover();
-  await plate.getByRole("button", { name: /Add .* to bag/ }).click();
-  // the badge moves optimistically, before the server has confirmed; the toast is only
-  // shown once the action resolved, so that is what tells us the cart really changed
-  await expect(page.getByText("Added to your bag")).toBeVisible();
+  await add.click();
+  // the badge moves optimistically, before the server has confirmed; the control only marks
+  // itself added once the action resolved, so that is what tells us the cart really changed
+  await expect(add).toHaveAttribute("data-added", "true");
   return name;
 }

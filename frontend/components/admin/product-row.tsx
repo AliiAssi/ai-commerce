@@ -8,6 +8,7 @@ import { Badge, StockBadge } from "@/components/ui/badge";
 import { Button, LinkButton } from "@/components/ui/button";
 import { Price } from "@/components/ui/price";
 import { ProductImage } from "@/components/ui/product-image";
+import { FLASH_MS, useTransient } from "@/lib/client/use-transient";
 import { adjustStock, setArchived } from "@/lib/actions/admin";
 import type { Product } from "@/lib/api/types";
 import { cn } from "@/lib/cn";
@@ -19,41 +20,33 @@ import { cn } from "@/lib/cn";
  */
 export function ProductRow({ product: initial }: { product: Product }) {
   const [product, setProduct] = useState(initial);
+  const [changed, flash] = useTransient(FLASH_MS);
   const [pending, startTransition] = useTransition();
   const toast = useToast();
 
-  const mutate = (
-    work: () => Promise<{ ok: boolean; data?: Product; error?: string }>,
-    success: (product: Product) => string,
-  ) => {
+  // The row rewrites itself with the server's product, so the new value is the confirmation.
+  // Only failures still need the global channel.
+  const mutate = (work: () => Promise<{ ok: boolean; data?: Product; error?: string }>) => {
     startTransition(async () => {
       const result = await work();
       if (result.ok && result.data) {
         setProduct(result.data);
-        toast(success(result.data), "success");
+        flash();
       } else {
         toast(result.error ?? "That didn't work", "danger");
       }
     });
   };
 
-  const step = (delta: number) =>
-    mutate(
-      () => adjustStock(product.id, delta),
-      (next) => `Stock set to ${next.stock}`,
-    );
+  const step = (delta: number) => mutate(() => adjustStock(product.id, delta));
 
-  const toggleArchived = () =>
-    mutate(
-      () => setArchived(product.id, !product.is_archived),
-      (next) => (next.is_archived ? `'${next.name}' archived` : `'${next.name}' is live again`),
-    );
+  const toggleArchived = () => mutate(() => setArchived(product.id, !product.is_archived));
 
   const stepClass =
     "h-7 w-7 rounded-el border border-border text-ink-muted hover:border-brand hover:text-brand disabled:opacity-40";
 
   return (
-    <tr className={cn(product.is_archived && "opacity-60")}>
+    <tr className={cn(product.is_archived && "opacity-60", changed && "flash")}>
       <td className="px-4 py-3">
         <div className="flex items-center gap-3">
           <ProductImage

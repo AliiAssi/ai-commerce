@@ -165,10 +165,11 @@ test.describe("adding to the bag", () => {
     await page.goto("/catalog");
 
     const plate = page.locator("article.plate").first();
+    const add = plate.getByRole("button", { name: /Add .* to bag/ });
     await plate.hover();
-    await plate.getByRole("button", { name: /Add .* to bag/ }).click();
+    await add.click();
 
-    await expect(page.getByText("Added to your bag")).toBeVisible();
+    await expect(add).toHaveAttribute("data-added", "true");
     await expect(page).not.toHaveURL(/\/login/);
   });
 
