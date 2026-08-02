@@ -1,17 +1,21 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { Suspense } from "react";
 
-import { AddToBagForm } from "@/components/cart/add-to-bag";
-import { ReviewForm } from "@/components/product/review-form";
+import { BuyBox } from "@/components/product/buy-box";
+import { ReviewComposer } from "@/components/product/review-composer";
+import { Provenance } from "@/components/storefront/provenance";
+import { RatingSummary } from "@/components/storefront/rating-summary";
+import { RelatedProducts } from "@/components/storefront/related-products";
 import { ReviewList } from "@/components/storefront/review-list";
-import { Price } from "@/components/ui/price";
 import { ProductImage } from "@/components/ui/product-image";
+import { RowListSkeleton, Skeleton } from "@/components/ui/skeleton";
 import { Stars } from "@/components/ui/stars";
 import { Eyebrow } from "@/components/ui/typography";
 import { getProduct, listAllProductIds, listReviews } from "@/lib/api/catalog";
 import { ApiError } from "@/lib/api/client";
-import { LOW_STOCK_AT } from "@/components/ui/badge";
+import type { Product, Review } from "@/lib/api/types";
 
 export const revalidate = 300;
 
@@ -48,19 +52,65 @@ async function load(idParam: string) {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;
   const product = await load(id);
+  const description = product.description.slice(0, 160);
   return {
     title: product.name,
-    description: product.description.slice(0, 160),
+    description,
+    openGraph: {
+      title: product.name,
+      description,
+      type: "website",
+      images: product.image_url ? [{ url: product.image_url, alt: product.name }] : undefined,
+    },
+  };
+}
+
+/**
+ * Search engines read availability and rating from here rather than inferring them from the
+ * markup. Every field is one we already hold, so nothing is asserted that the page does not
+ * also show.
+ */
+function productSchema(product: Product) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    name: product.name,
+    description: product.description,
+    image: product.image_url ?? undefined,
+    category: product.category_name,
+    offers: {
+      "@type": "Offer",
+      price: product.price,
+      priceCurrency: "USD",
+      availability:
+        product.stock > 0 ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+    },
+    aggregateRating:
+      product.review_count > 0
+        ? {
+            "@type": "AggregateRating",
+            ratingValue: product.rating_avg,
+            reviewCount: product.review_count,
+          }
+        : undefined,
   };
 }
 
 export default async function ProductPage({ params }: Props) {
   const { id } = await params;
   const product = await load(id);
-  const reviews = await listReviews(product.id);
+
+  // Not awaited: the product is what the page is for, so reviews and the shelf below stream
+  // in behind it rather than holding the whole route back.
+  const reviews = listReviews(product.id);
 
   return (
     <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(productSchema(product)) }}
+      />
+
       <nav className="mb-8 text-sm text-ink-muted" aria-label="Breadcrumb">
         <Link href="/" className="hover:text-brand">
           Home
@@ -74,11 +124,14 @@ export default async function ProductPage({ params }: Props) {
       </nav>
 
       <div className="grid gap-14 lg:grid-cols-[1.05fr_0.95fr] lg:items-start">
-        <div className="overflow-hidden rounded-card border border-border bg-surface-sunk">
+        {/* The photograph is the product on a store like this one, so it holds while the
+            copy beside it scrolls. */}
+        <div className="relative aspect-square overflow-hidden rounded-card border border-border bg-surface-sunk lg:sticky lg:top-24">
           <ProductImage
             src={product.image_url}
             alt={product.name}
-            className="aspect-square w-full object-cover"
+            sizes="(min-width: 1024px) 34rem, 92vw"
+            priority
           />
         </div>
 
@@ -86,7 +139,7 @@ export default async function ProductPage({ params }: Props) {
           <div className="flex flex-col gap-3">
             <Eyebrow>
               {product.category_name}
-              {product.origin ? ` · ${product.origin}` : ""}
+              {product.origin ? ` \u00b7 ${product.origin}` : ""}
             </Eyebrow>
             <h1 className="font-serif text-title leading-[1.08] tracking-tight">
               {product.name}
@@ -94,26 +147,16 @@ export default async function ProductPage({ params }: Props) {
             <Stars rating={product.rating_avg} count={product.review_count} />
           </div>
 
-          <Price value={product.price} size="xl" />
+          <BuyBox
+            productId={product.id}
+            name={product.name}
+            price={product.price}
+            stock={product.stock}
+          />
+
           <p className="max-w-[60ch] leading-relaxed text-ink-muted">{product.description}</p>
 
-          {product.stock > 0 ? (
-            <div className="flex flex-col gap-2">
-              <AddToBagForm productId={product.id} stock={product.stock} />
-              {product.stock <= LOW_STOCK_AT && <Eyebrow>Only {product.stock} left</Eyebrow>}
-            </div>
-          ) : (
-            <p className="text-sm text-danger">Sold out, check back soon.</p>
-          )}
-
-          {product.origin && (
-            <dl className="grid grid-cols-[8rem_1fr] gap-x-4 gap-y-3 border-t border-border pt-5 text-sm">
-              <dt className="text-ink-faint">Origin</dt>
-              <dd className="m-0">{product.origin}</dd>
-              <dt className="text-ink-faint">Category</dt>
-              <dd className="m-0">{product.category_name}</dd>
-            </dl>
-          )}
+          <Provenance origin={product.origin} />
         </div>
       </div>
 
@@ -121,13 +164,45 @@ export default async function ProductPage({ params }: Props) {
         <h2 className="mb-6 font-serif text-2xl">
           Reviews <span className="text-ink-faint">({product.review_count})</span>
         </h2>
-        <ReviewList reviews={reviews} />
+        <Suspense fallback={<ReviewsSkeleton />}>
+          <Reviews reviews={reviews} />
+        </Suspense>
+        {/* Below the reviews, not above: contributing follows reading, and the composer only
+            appears at all once the server confirms this visitor could post. */}
         <div className="mt-8">
-          {/* The form decides for itself whether to show fields or a log-in prompt, because
-              only the client knows who is signed in on this statically rendered page. */}
-          <ReviewForm productId={product.id} />
+          <ReviewComposer productId={product.id} productName={product.name} />
         </div>
       </section>
+
+      <Suspense fallback={null}>
+        <RelatedProducts
+          categorySlug={product.category_slug}
+          categoryName={product.category_name}
+          excludeId={product.id}
+        />
+      </Suspense>
     </>
+  );
+}
+
+async function Reviews({ reviews }: { reviews: Promise<Review[]> }) {
+  const list = await reviews;
+  return (
+    <>
+      <RatingSummary reviews={list} />
+      <ReviewList reviews={list} />
+    </>
+  );
+}
+
+function ReviewsSkeleton() {
+  return (
+    <div role="status" aria-label="Loading reviews">
+      <div className="mb-8 flex gap-12 border-b border-border pb-8">
+        <Skeleton className="h-20 w-24" />
+        <Skeleton className="h-20 flex-1" />
+      </div>
+      <RowListSkeleton rows={3} label="Loading reviews" />
+    </div>
   );
 }

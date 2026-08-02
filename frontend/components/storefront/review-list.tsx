@@ -1,6 +1,7 @@
 import { EmptyState } from "@/components/ui/panel";
 import { Stars } from "@/components/ui/stars";
 import type { Review } from "@/lib/api/types";
+import { reviewerName } from "@/lib/reviewer";
 
 const DATE_FORMAT = new Intl.DateTimeFormat("en-US", {
   month: "short",
@@ -26,7 +27,8 @@ export function ReviewList({ reviews }: { reviews: Review[] }) {
           <div className="flex flex-wrap items-center justify-between gap-2">
             <Stars rating={review.rating} />
             <span className="text-xs text-ink-faint">
-              {review.user_email} &middot; {DATE_FORMAT.format(new Date(review.created_at))}
+              {reviewerName(review.user_email)} &middot;{" "}
+              {DATE_FORMAT.format(new Date(review.created_at))}
             </span>
           </div>
           <p className="mt-2 text-sm leading-relaxed text-ink-muted">{review.text}</p>

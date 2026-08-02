@@ -61,6 +61,25 @@ class ReviewRepository(IReviewRepository):
         )
         return row is not None
 
+    async def get_by_user(self, product_id: int, user_id: int) -> ReviewDTO | None:
+        review = await self._session.scalar(
+            select(Review)
+            .where(Review.product_id == product_id, Review.user_id == user_id)
+            .limit(1)
+        )
+        if review is None:
+            return None
+        email = await self._session.scalar(select(User.email).where(User.id == user_id))
+        return ReviewDTO(
+            id=review.id,
+            product_id=review.product_id,
+            user_id=review.user_id,
+            user_email=email or "",
+            rating=review.rating,
+            text=review.text,
+            created_at=review.created_at,
+        )
+
     async def rating_stats(self, product_id: int) -> tuple[Decimal, int]:
         row = (
             await self._session.execute(

@@ -34,7 +34,12 @@ export function PlateTag({ stock }: { stock: number }) {
  */
 export function Plate({ product, quickAdd }: { product: Product; quickAdd?: ReactNode }) {
   return (
-    <article className="plate reveal flex flex-col gap-3.5">
+    /* RevealOnScroll owns this element's class and transition-delay from outside React. When
+       a plate arrives inside a streamed Suspense boundary — the related shelf, or the catalog
+       grid on a slow backend — the observer marks it before React hydrates that subtree, and
+       hydration then compares against a DOM it did not write. Declaring the element
+       externally managed is the accurate description; React leaves the reveal in place. */
+    <article className="plate reveal flex flex-col gap-3.5" suppressHydrationWarning>
       {/* The quick-add button is absolutely positioned, so it has to sit inside this
           relative box rather than beside the link — otherwise it anchors to whatever is
           positioned further up the tree and lands off the image entirely. Keeping it a
@@ -48,7 +53,8 @@ export function Plate({ product, quickAdd }: { product: Product; quickAdd?: Reac
           <ProductImage
             src={product.image_url}
             alt={product.name}
-            className="plate-art h-full w-full object-cover"
+            sizes="(min-width: 1280px) 22rem, (min-width: 640px) 45vw, 90vw"
+            className="plate-art"
           />
         </Link>
         <PlateTag stock={product.stock} />

@@ -86,3 +86,40 @@ async def test_cancelled_order_does_not_verify(client, catalog):
         headers=headers,
     )
     assert response.status_code == 403
+
+
+async def test_eligibility_answers_a_signed_out_caller_with_200(client, catalog):
+    response = await client.get(f"/api/v1/products/{catalog['alpha'].id}/reviews/eligibility")
+    assert response.status_code == 200
+    assert response.json() == {"can_review": False, "reason": "not_authenticated", "review": None}
+
+
+async def test_eligibility_walks_a_shopper_through_every_state(client, catalog):
+    alpha = catalog["alpha"]
+    headers = auth_headers(await register_user(client, "eligible@it.test"))
+    url = f"/api/v1/products/{alpha.id}/reviews/eligibility"
+
+    body = (await client.get(url, headers=headers)).json()
+    assert body["can_review"] is False
+    assert body["reason"] == "not_purchased"
+
+    await _buy(client, headers, alpha.id)
+    body = (await client.get(url, headers=headers)).json()
+    assert body["can_review"] is True
+    assert body["reason"] is None
+
+    await client.post(
+        f"/api/v1/products/{alpha.id}/reviews",
+        json={"rating": 5, "text": "worth every cent"},
+        headers=headers,
+    )
+    body = (await client.get(url, headers=headers)).json()
+    assert body["can_review"] is False
+    assert body["reason"] == "already_reviewed"
+    assert body["review"]["rating"] == 5
+    assert body["review"]["text"] == "worth every cent"
+
+
+async def test_eligibility_404s_on_an_unknown_product(client):
+    response = await client.get("/api/v1/products/999999/reviews/eligibility")
+    assert response.status_code == 404
