@@ -144,7 +144,7 @@ def _price_sort() -> ExplicitFilters:
 
 @pytest.fixture
 def config():
-    return settings(RERANK_MIN_SCORE=0.15, RERANK_GAP_RATIO=0.35, RERANK_MAX_RESULTS=12)
+    return settings(RERANK_MIN_SCORE=0.15, RERANK_GAP_RATIO=0.35)
 
 
 async def test_the_irrelevant_tail_never_reaches_the_caller(config):
@@ -270,6 +270,28 @@ async def test_arabic_queries_are_judged_against_the_arabic_floor():
     result = await service.search(SearchQuery(q="شيء حامض للفتوش"))
 
     assert result.product_ids == [1, 2], "0.40 and 0.30 clear the Arabic floor but not the English"
+
+
+async def test_the_result_cap_follows_the_page_the_caller_asked_for(config):
+    """There is no configured maximum. Retrieval has already limited to page_size, so a fixed
+    cap could only be inert or quietly return fewer results than the caller requested."""
+    scores = [0.9 - i * 0.01 for i in range(20)]
+    repository = FakeSearchRepository(list(range(20)), total=20)
+    service = build(repository, StubReranker(scores), config)
+
+    result = await service.search(SearchQuery(q="olive oil", page_size=20))
+
+    assert len(result.product_ids) == 20, "a caller asking for 20 gets 20"
+
+
+async def test_a_smaller_page_still_binds(config):
+    scores = [0.9 - i * 0.01 for i in range(20)]
+    repository = FakeSearchRepository(list(range(20)), total=20)
+    service = build(repository, StubReranker(scores), config)
+
+    result = await service.search(SearchQuery(q="olive oil", page_size=5))
+
+    assert len(result.product_ids) == 5
 
 
 async def test_the_cutoff_can_be_switched_off_entirely():

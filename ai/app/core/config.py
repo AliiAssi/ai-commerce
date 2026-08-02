@@ -76,7 +76,7 @@ class Settings(DatabaseSettings):
     RERANKER_API_KEY: str = ""
     RERANKER_MODEL: str = ""
     RERANKER_TOP_K: int = Field(default=30, ge=20, le=50)
-    RERANKER_TIMEOUT_SECONDS: float = 5
+    RERANKER_TIMEOUT_SECONDS: float = Field(default=5.0, gt=0, le=30.0)
 
     RERANKER_FALLBACK_PROVIDER: str = ""
     RERANKER_FALLBACK_HOST: str = ""
@@ -96,9 +96,7 @@ class Settings(DatabaseSettings):
     RERANK_MIN_SCORE: float = Field(default=0.005, ge=0.0, le=1.0)
     RERANK_MIN_SCORE_AR: float = Field(default=0.003, ge=0.0, le=1.0)
     RERANK_GAP_RATIO: float = Field(default=0.35, ge=0.0, le=1.0)
-    RERANK_MAX_RESULTS: int = Field(default=12, ge=1, le=100)
 
-    SEARCH_DEADLINE_SECONDS: float = 30.0
     SEARCH_SEMANTIC_CANDIDATES: int = Field(default=100, ge=1, le=1000)
     SEARCH_LEXICAL_CANDIDATES: int = Field(default=100, ge=1, le=1000)
     SEARCH_TRIGRAM_CANDIDATES: int = Field(default=50, ge=0, le=1000)
@@ -176,11 +174,6 @@ class Settings(DatabaseSettings):
             raise ValueError(
                 "SEARCH_HNSW_ITERATIVE_SCAN must be one of off, relaxed_order, strict_order; "
                 f"got {self.SEARCH_HNSW_ITERATIVE_SCAN!r}"
-            )
-        if self.RERANKER_TIMEOUT_SECONDS > self.SEARCH_DEADLINE_SECONDS:
-            raise ValueError(
-                "RERANKER_TIMEOUT_SECONDS must not exceed SEARCH_DEADLINE_SECONDS "
-                f"({self.RERANKER_TIMEOUT_SECONDS} > {self.SEARCH_DEADLINE_SECONDS})"
             )
         if self.SEARCH_EVENT_QUERY_RETENTION_DAYS > self.SEARCH_EVENT_METRIC_RETENTION_DAYS:
             raise ValueError(
