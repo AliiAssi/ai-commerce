@@ -78,33 +78,37 @@ textarea:focus-visible {
   }
 }
 
-.plate-art {
-  filter: grayscale(1) contrast(0.92);
-  opacity: 0.82;
-  transition:
-    filter var(--motion-slow) var(--ease-soft),
-    opacity var(--motion-slow) var(--ease-soft),
-    transform var(--motion-plate) var(--ease-soft);
-}
-.plate:hover .plate-art,
-.plate:focus-within .plate-art {
-  filter: none;
-  opacity: 1;
-  transform: scale(1.035);
-}
+/* Both reveals below are gated on a real pointer. A touch device never fires :hover, so
+   ungated they would leave the catalogue permanently grey and the add control invisible. */
+@media (hover: hover) and (pointer: fine) {
+  .plate-art {
+    filter: grayscale(1) contrast(0.92);
+    opacity: 0.82;
+    transition:
+      filter var(--motion-slow) var(--ease-soft),
+      opacity var(--motion-slow) var(--ease-soft),
+      transform var(--motion-plate) var(--ease-soft);
+  }
+  .plate:hover .plate-art,
+  .plate:focus-within .plate-art {
+    filter: none;
+    opacity: 1;
+    transform: scale(1.035);
+  }
 
-/* the quick-add control only surfaces on intent */
-.plate-add {
-  opacity: 0;
-  transform: translateY(0.375rem);
-  transition:
-    opacity var(--motion-fast),
-    transform var(--motion-fast);
-}
-.plate:hover .plate-add,
-.plate:focus-within .plate-add {
-  opacity: 1;
-  transform: none;
+  /* the quick-add control only surfaces on intent */
+  .plate-add {
+    opacity: 0;
+    transform: translateY(0.375rem);
+    transition:
+      opacity var(--motion-fast),
+      transform var(--motion-fast);
+  }
+  .plate:hover .plate-add,
+  .plate:focus-within .plate-add {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 /* A row that just changed. The updated value is the real feedback; this only says where to

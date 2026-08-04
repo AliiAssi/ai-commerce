@@ -25,13 +25,6 @@ export function PlateTag({ stock }: { stock: number }) {
   return null;
 }
 
-/**
- * A catalogue plate: the product card. Enters greyscale and resolves to full material colour
- * on intent (see .plate/.plate-art in app.css).
- *
- * `quickAdd` is a slot rather than a built-in form. Phase 2 renders plates read-only and
- * passes nothing; Phase 3 passes the add-to-bag control once cart mutations exist.
- */
 export function Plate({ product, quickAdd }: { product: Product; quickAdd?: ReactNode }) {
   return (
     /* RevealOnScroll owns this element's class and transition-delay from outside React. When
@@ -47,7 +40,7 @@ export function Plate({ product, quickAdd }: { product: Product; quickAdd?: Reac
       <div className="relative aspect-[4/5] overflow-hidden rounded-card border border-border bg-surface-sunk">
         <Link
           href={`/products/${product.id}`}
-          className="block h-full w-full"
+          className="relative block h-full w-full"
           aria-label={product.name}
         >
           <ProductImage

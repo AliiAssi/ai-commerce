@@ -126,13 +126,15 @@ export default async function ProductPage({ params }: Props) {
       <div className="grid gap-14 lg:grid-cols-[1.05fr_0.95fr] lg:items-start">
         {/* The photograph is the product on a store like this one, so it holds while the
             copy beside it scrolls. */}
-        <div className="relative aspect-square overflow-hidden rounded-card border border-border bg-surface-sunk lg:sticky lg:top-24">
-          <ProductImage
-            src={product.image_url}
-            alt={product.name}
-            sizes="(min-width: 1024px) 34rem, 92vw"
-            priority
-          />
+        <div className="lg:sticky lg:top-24">
+          <div className="relative aspect-square overflow-hidden rounded-card border border-border bg-surface-sunk">
+            <ProductImage
+              src={product.image_url}
+              alt={product.name}
+              sizes="(min-width: 1024px) 34rem, 92vw"
+              priority
+            />
+          </div>
         </div>
 
         <div className="flex flex-col gap-6">
