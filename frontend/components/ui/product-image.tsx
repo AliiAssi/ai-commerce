@@ -1,11 +1,21 @@
 "use client";
 
-import Image from "next/image";
+import Image, { type ImageLoader } from "next/image";
 import { useState } from "react";
 
 import { cn } from "@/lib/cn";
 
 export const PLACEHOLDER_SRC = "/img/placeholder.svg";
+
+
+const cdnLoader: ImageLoader = ({ src, width, quality }) => {
+  const url = new URL(src);
+  url.searchParams.set("w", String(width));
+  url.searchParams.set("q", String(quality ?? 75));
+  return url.toString();
+};
+
+const loaderFor = (src: string) => (src.startsWith("http") ? cdnLoader : undefined);
 
 export function ProductImage({
   src,
@@ -28,6 +38,7 @@ export function ProductImage({
     <Image
       src={resolved}
       alt={alt}
+      loader={loaderFor(resolved)}
       fill
       sizes={sizes}
       priority={priority}
@@ -56,6 +67,7 @@ export function ProductThumb({
     <Image
       src={resolved}
       alt={alt}
+      loader={loaderFor(resolved)}
       width={size}
       height={size}
       className={cn("object-cover", className)}
