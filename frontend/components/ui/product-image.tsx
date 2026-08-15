@@ -7,7 +7,6 @@ import { cn } from "@/lib/cn";
 
 export const PLACEHOLDER_SRC = "/img/placeholder.svg";
 
-
 const cdnLoader: ImageLoader = ({ src, width, quality }) => {
   const url = new URL(src);
   url.searchParams.set("w", String(width));
