@@ -2,7 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 
 import { loginAs, newEmail, register } from "./support";
 
-const ADMIN = { email: "admin@beit.test", password: "Password#123" };
+const ADMIN = { email: "admin@store.test", password: "Admin#12345" };
 
 /** Creates a product through the admin form so a test can mutate it without disturbing others. */
 async function createProduct(page: Page): Promise<string> {
