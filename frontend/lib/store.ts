@@ -1,5 +1,13 @@
 export const STORE_NAME = "BEIT";
 
+export const AUTHOR = {
+  name: "Ali Assi",
+  github: "https://github.com/AliiAssi",
+  email: "aliassii2025@gmail.com",
+} as const;
+
+export const SOURCE_URL = "https://github.com/AliiAssi/ai-commerce";
+
 export const aiEnabled = process.env.AI_ENABLED !== "false";
 
 export const NAV_ITEMS = [

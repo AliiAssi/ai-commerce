@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { Badge, StatusBadge, StockBadge } from "@/components/ui/badge";
+import { IconLink } from "@/components/ui/links";
 import { PlateTag } from "@/components/ui/plate";
 import { Price } from "@/components/ui/price";
 import { Stars } from "@/components/ui/stars";
@@ -83,5 +84,29 @@ describe("Badge", () => {
   it("defaults to the neutral variant", () => {
     render(<Badge>Plain</Badge>);
     expect(screen.getByText("Plain")).toHaveClass("bg-surface-alt");
+  });
+});
+
+describe("IconLink", () => {
+  it("opens web addresses in a new tab without leaking the referrer", () => {
+    render(
+      <IconLink href="https://github.com/AliiAssi/ai-commerce" icon="github">
+        Source
+      </IconLink>,
+    );
+    const link = screen.getByRole("link", { name: "Source" });
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", "noreferrer");
+  });
+
+  it("leaves mailto links in the same tab", () => {
+    render(
+      <IconLink href="mailto:someone@example.com" icon="mail">
+        someone@example.com
+      </IconLink>,
+    );
+    const link = screen.getByRole("link", { name: "someone@example.com" });
+    expect(link).toHaveAttribute("href", "mailto:someone@example.com");
+    expect(link).not.toHaveAttribute("target");
   });
 });

@@ -2,9 +2,9 @@ import Link from "next/link";
 
 import { listCategories } from "@/lib/api/catalog";
 import type { Category } from "@/lib/api/types";
-import { STORE_NAME } from "@/lib/store";
+import { AUTHOR, SOURCE_URL, STORE_NAME } from "@/lib/store";
 import { FooterAccountLinks } from "./footer-account";
-import { FooterLink } from "@/components/ui/links";
+import { FooterLink, IconLink } from "@/components/ui/links";
 import { Eyebrow } from "@/components/ui/typography";
 
 async function Shelves() {
@@ -82,9 +82,27 @@ export function SiteFooter() {
       </div>
 
       <div className="border-t border-border">
-        <div className="mx-auto flex w-full max-w-shell flex-wrap items-center justify-between gap-x-6 gap-y-1 px-4 py-5 text-xs text-ink-muted">
-          <span>&copy; {STORE_NAME}. Lebanese goods, sourced from the makers</span>
-          <span>Instant fake payments &middot; nothing is charged</span>
+        <div className="mx-auto flex w-full max-w-shell flex-wrap items-center justify-between gap-x-6 gap-y-2 px-4 py-5 text-xs text-ink-muted">
+          <span>
+            &copy; {STORE_NAME} &middot; Built by{" "}
+            <a
+              href={AUTHOR.github}
+              target="_blank"
+              rel="noreferrer"
+              className="text-ink transition-colors hover:text-brand"
+            >
+              {AUTHOR.name}
+            </a>
+          </span>
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+            <IconLink href={SOURCE_URL} icon="github">
+              Source
+            </IconLink>
+            <IconLink href={`mailto:${AUTHOR.email}`} icon="mail">
+              {AUTHOR.email}
+            </IconLink>
+            <span>Instant fake payments &middot; nothing is charged</span>
+          </div>
         </div>
       </div>
     </footer>

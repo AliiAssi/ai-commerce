@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { MouseEventHandler, ReactNode } from "react";
 
+import { Icon, type IconName } from "./icon";
 import { Spinner } from "./spinner";
 import { cn } from "@/lib/cn";
 
@@ -48,6 +49,30 @@ export function FooterLink({
       <span>{children}</span>
       {count !== undefined && <span className="tabular-nums text-ink-faint">{count}</span>}
     </Link>
+  );
+}
+
+/** A small icon-led link; web addresses open in a new tab, mailto links do not. */
+export function IconLink({
+  href,
+  icon,
+  children,
+}: {
+  href: string;
+  icon: IconName;
+  children: ReactNode;
+}) {
+  const external = href.startsWith("http");
+  return (
+    <a
+      href={href}
+      target={external ? "_blank" : undefined}
+      rel={external ? "noreferrer" : undefined}
+      className="inline-flex items-center gap-1.5 transition-colors hover:text-ink"
+    >
+      <Icon name={icon} className="h-3.5 w-3.5" />
+      {children}
+    </a>
   );
 }
 
