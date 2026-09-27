@@ -141,6 +141,8 @@ test.describe("catalog", () => {
       await expect(disclosure).toBeVisible();
       await expect(disclosure.getByLabel("Minimum price")).toBeHidden();
 
+      // the grid streams in behind the shell, so measure it only once it has landed
+      await expect(plates(page).first()).toBeVisible();
       const firstPlate = await plates(page).first().boundingBox();
       expect(firstPlate?.y ?? Infinity).toBeLessThan(844);
     });

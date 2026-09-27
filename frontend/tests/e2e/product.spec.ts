@@ -56,13 +56,19 @@ test.describe("product page", () => {
   test("publishes structured data that matches what is on the page", async ({ page }) => {
     const name = await openFirstProduct(page);
 
-    const raw = await page.locator('script[type="application/ld+json"]').innerText();
-    const schema = JSON.parse(raw);
+    const blocks = await page.locator('script[type="application/ld+json"]').allInnerTexts();
+    const schemas = blocks.map((raw) => JSON.parse(raw));
+    const product = schemas.find((schema) => schema["@type"] === "Product");
+    const breadcrumb = schemas.find((schema) => schema["@type"] === "BreadcrumbList");
 
-    expect(schema["@type"]).toBe("Product");
-    expect(schema.name).toBe(name);
-    expect(schema.offers.priceCurrency).toBe("USD");
-    expect(schema.offers.availability).toContain("InStock");
+    expect(product.name).toBe(name);
+    expect(product.offers.priceCurrency).toBe("USD");
+    expect(product.offers.availability).toContain("InStock");
+
+    const trail = await page.getByRole("navigation", { name: "Breadcrumb" }).innerText();
+    const crumbs = breadcrumb.itemListElement.map((item: { name: string }) => item.name);
+    expect(crumbs.at(-1)).toBe(name);
+    for (const crumb of crumbs) expect(trail).toContain(crumb);
   });
 
   test("never prints a reviewer's address", async ({ page }) => {
