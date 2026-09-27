@@ -58,6 +58,8 @@ class Settings(DatabaseSettings):
 
     LOW_STOCK_THRESHOLD: int = 5
 
+    SCHEDULER_ENABLED: bool = True
+
     #  Smart search
     SMART_SEARCH_ROUTING_ENABLED: bool = False
     # The outermost limit on a storefront search, and the only one that is actually enforced end

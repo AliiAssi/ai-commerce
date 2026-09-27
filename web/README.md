@@ -22,7 +22,7 @@ cp ../.env.example ../.env # one shared .env at the repo root, used by both serv
 
 | Variable | Required | Notes |
 |---|---|---|
-| `DATABASE_URL` | yes | any Postgres. On Neon use the **direct** string, not the `-pooler` host |
+| `DATABASE_URL` | yes | any Postgres. On Supabase use the **Session pooler** string (port 5432): the direct host is IPv6-only, and transaction mode (6543) breaks asyncpg's prepared statements |
 | `JWT_SECRET` | yes | min 32 chars; the service refuses to boot without it |
 | `AI_SERVICE_URL`, `INTERNAL_API_KEY` | no | enable the chat proxy; without them `/api/v1/ai/chat` returns `503 ai_unavailable` and the store works normally |
 | `SEED_ADMIN_EMAIL`, `SEED_ADMIN_PASSWORD` | no | the account `seed_catalog` promotes to admin |
@@ -37,6 +37,12 @@ uv run uvicorn app.main:app --reload                 # http://127.0.0.1:8000/doc
 ```
 
 `seed_catalog` accepts `--fresh` to truncate the store tables first.
+
+Scheduled jobs are declared in `app/application/jobs/schedule.py` and run inside the API
+process, so the server needs no crontab. `db_keepalive` runs one read against `products` daily
+at 00:00 UTC, because a free Supabase project pauses after a week without database activity.
+Run a job by hand with `uv run python -m app.application.jobs.db_keepalive`, or turn the
+scheduler off with `SCHEDULER_ENABLED=false`.
 
 ## API
 

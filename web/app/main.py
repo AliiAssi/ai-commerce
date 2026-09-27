@@ -8,10 +8,12 @@ from fastapi import APIRouter, FastAPI
 from sqlalchemy import text
 
 from app.application.iservices.iai_gateway import IAIGateway
+from app.application.jobs import schedule
 from app.core.config import load_settings_or_exit
 from app.core.container import container
 from app.core.logging import RequestContextMiddleware, setup_logging
 from app.core.registry import configure
+from app.core.scheduler import Scheduler
 from app.presentation.controllers.api import (
     admin_controller,
     ai_controller,
@@ -37,9 +39,15 @@ def create_app() -> FastAPI:
     setup_logging(settings.ENVIRONMENT)
     configure(container, settings)
 
+    scheduler = Scheduler()
+    schedule.register(scheduler)
+
     @asynccontextmanager
     async def lifespan(_: FastAPI):
+        if settings.SCHEDULER_ENABLED:
+            scheduler.start()
         yield
+        await scheduler.stop()
         await _close_ai_gateway()
         if container.engine is not None:
             await container.engine.dispose()

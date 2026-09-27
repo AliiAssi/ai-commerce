@@ -28,7 +28,7 @@ cp ../.env.example ../.env # one shared .env at the repo root, used by both serv
 ```
 
 Required in the root `.env`: `DATABASE_URL` (same database as web — any Postgres works,
-Neon recommended), `OLLAMA_API_KEY`, `MCP_BEARER_TOKEN` (min 16 chars), and
+Supabase in production), `OLLAMA_API_KEY`, `MCP_BEARER_TOKEN` (min 16 chars), and
 `INTERNAL_API_KEY` (min 16 chars, same value web uses). `OLLAMA_MODEL` defaults to
 `gemma4:31b-cloud` (must support tool calling).
 

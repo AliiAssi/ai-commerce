@@ -44,7 +44,7 @@ echo "==> postgres"
 docker rm -f "$CONTAINER" >/dev/null 2>&1 || true
 docker run -d --rm --name "$CONTAINER" \
   -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=beit_e2e \
-  -p "${PG_PORT}:5432" pgvector/pgvector:pg18 >/dev/null
+  -p "${PG_PORT}:5432" pgvector/pgvector:pg17 >/dev/null
 for _ in $(seq 1 60); do
   docker exec "$CONTAINER" pg_isready -U postgres -d beit_e2e >/dev/null 2>&1 && break
   sleep 1
