@@ -8,6 +8,8 @@ export const AUTHOR = {
 
 export const SOURCE_URL = "https://github.com/AliiAssi/ai-commerce";
 
+export const HERO_LINES = ["Everything Lebanon", "makes well, in", "one small store."];
+
 export const aiEnabled = process.env.AI_ENABLED !== "false";
 
 export const NAV_ITEMS = [

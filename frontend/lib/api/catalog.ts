@@ -85,17 +85,21 @@ export function listFeatured() {
 const MAX_PAGE_SIZE = 100; // the public endpoint's own cap
 const MAX_PRERENDER_PAGES = 20; // 2000 products; a guard, not a limit we expect to hit
 
-export async function listAllProductIds(): Promise<number[]> {
-  const ids: number[] = [];
+export async function listAllProducts(): Promise<Product[]> {
+  const products: Product[] = [];
   let page = 1;
   let pages = 1;
 
   while (page <= pages && page <= MAX_PRERENDER_PAGES) {
     const result = await listProducts({ page, page_size: MAX_PAGE_SIZE });
-    ids.push(...result.items.map((product) => product.id));
+    products.push(...result.items);
     pages = result.pages;
     page += 1;
   }
 
-  return ids;
+  return products;
+}
+
+export async function listAllProductIds(): Promise<number[]> {
+  return (await listAllProducts()).map((product) => product.id);
 }

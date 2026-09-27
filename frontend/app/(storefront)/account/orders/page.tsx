@@ -9,8 +9,9 @@ import { Price } from "@/components/ui/price";
 import { listOrders } from "@/lib/api/orders";
 import { getToken } from "@/lib/auth/session";
 import { formatDate } from "@/lib/format";
+import { NO_INDEX } from "@/lib/seo";
 
-export const metadata: Metadata = { title: "My orders" };
+export const metadata: Metadata = { title: "My orders", robots: NO_INDEX };
 export const dynamic = "force-dynamic";
 
 export default async function OrdersPage() {

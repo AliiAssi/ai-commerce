@@ -5,6 +5,7 @@ import { Suspense } from "react";
 
 import { BuyBox } from "@/components/product/buy-box";
 import { ReviewComposer } from "@/components/product/review-composer";
+import { JsonLd } from "@/components/seo/json-ld";
 import { Provenance } from "@/components/storefront/provenance";
 import { RatingSummary } from "@/components/storefront/rating-summary";
 import { RelatedProducts } from "@/components/storefront/related-products";
@@ -16,6 +17,7 @@ import { Eyebrow } from "@/components/ui/typography";
 import { getProduct, listAllProductIds, listReviews } from "@/lib/api/catalog";
 import { ApiError } from "@/lib/api/client";
 import type { Product, Review } from "@/lib/api/types";
+import { absoluteUrl, breadcrumbSchema, pageMetadata } from "@/lib/seo";
 
 export const revalidate = 300;
 
@@ -52,15 +54,16 @@ async function load(idParam: string) {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;
   const product = await load(id);
-  const description = product.description.slice(0, 160);
-  return {
+  const metadata = pageMetadata({
     title: product.name,
-    description,
+    description: product.description.slice(0, 160),
+    path: `/products/${product.id}`,
+  });
+  return {
+    ...metadata,
     openGraph: {
-      title: product.name,
-      description,
-      type: "website",
-      images: product.image_url ? [{ url: product.image_url, alt: product.name }] : undefined,
+      ...metadata.openGraph,
+      ...(product.image_url && { images: [{ url: product.image_url, alt: product.name }] }),
     },
   };
 }
@@ -75,6 +78,7 @@ function productSchema(product: Product) {
     "@context": "https://schema.org",
     "@type": "Product",
     name: product.name,
+    url: absoluteUrl(`/products/${product.id}`),
     description: product.description,
     image: product.image_url ?? undefined,
     category: product.category_name,
@@ -106,10 +110,8 @@ export default async function ProductPage({ params }: Props) {
 
   return (
     <>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(productSchema(product)) }}
-      />
+      <JsonLd data={productSchema(product)} />
+      <JsonLd data={breadcrumbSchema(product)} />
 
       <nav className="mb-8 text-sm text-ink-muted" aria-label="Breadcrumb">
         <Link href="/" className="hover:text-brand">

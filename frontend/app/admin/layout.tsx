@@ -7,8 +7,9 @@ import { AdminLogout, AdminSidebarNav, AdminTopNav } from "@/components/admin/ad
 import { EmptyState } from "@/components/ui/panel";
 import { getCurrentUser } from "@/lib/auth/session";
 import { STORE_NAME } from "@/lib/store";
+import { NO_INDEX } from "@/lib/seo";
 
-export const metadata: Metadata = { title: "Admin" };
+export const metadata: Metadata = { title: "Admin", robots: NO_INDEX };
 
 // Permission-gated and per-user: never cached.
 export const dynamic = "force-dynamic";

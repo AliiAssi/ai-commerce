@@ -10,8 +10,9 @@ import { ApiError } from "@/lib/api/client";
 import { getOrder } from "@/lib/api/orders";
 import { getToken } from "@/lib/auth/session";
 import { formatDateTime } from "@/lib/format";
+import { NO_INDEX } from "@/lib/seo";
 
-export const metadata: Metadata = { title: "Order" };
+export const metadata: Metadata = { title: "Order", robots: NO_INDEX };
 export const dynamic = "force-dynamic";
 
 export default async function OrderDetailPage(props: { params: Promise<{ id: string }> }) {

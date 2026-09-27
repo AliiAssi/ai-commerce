@@ -27,8 +27,8 @@ import { ApiError } from "@/lib/api/client";
 import type { Category, ProductPage, SearchMetadata } from "@/lib/api/types";
 import { isDefaultSort, parseSort } from "@/lib/catalog-sort";
 import { copyDir, copyFor, copyLang, isFaultDegradation } from "@/lib/search-copy";
+import { categoryDescription, NO_INDEX, pageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = { title: "Catalog" };
 export const revalidate = 300;
 
 const INFERRED_NAMES = new Set([
@@ -223,6 +223,38 @@ function countFilters(p: Params): number {
   return [p.category, p.origin, p.minPrice, p.maxPrice, p.inStockOnly ? "y" : ""].filter(
     Boolean,
   ).length;
+}
+
+/**
+ * A category is the page worth ranking, so it keeps its query in the canonical; sort, paging
+ * and filters collapse onto it, and a search result is never indexed at all.
+ */
+export async function generateMetadata(props: {
+  searchParams: Promise<RawParams>;
+}): Promise<Metadata> {
+  const raw = await props.searchParams;
+  const slug = one(raw.category).trim();
+  let category: Category | undefined;
+  if (slug) {
+    try {
+      category = (await listCategories()).find((c) => c.slug === slug);
+    } catch {
+      category = undefined;
+    }
+  }
+  const metadata = category
+    ? pageMetadata({
+        title: category.name,
+        description: categoryDescription(category),
+        path: `/catalog?category=${category.slug}`,
+      })
+    : pageMetadata({
+        title: "Catalog",
+        description:
+          "Browse every shelf of Lebanese goods: olive oil and za'atar, the mouneh pantry, coffee and sweets, ceramics, soap, textiles, cedar woodwork, glass and copper.",
+        path: "/catalog",
+      });
+  return one(raw.q).trim() ? { ...metadata, robots: NO_INDEX } : metadata;
 }
 
 export default async function CatalogPage(props: { searchParams: Promise<RawParams> }) {

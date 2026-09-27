@@ -7,8 +7,9 @@ import { Price } from "@/components/ui/price";
 import { ProductThumb } from "@/components/ui/product-image";
 import { getCart } from "@/lib/api/cart";
 import { getToken } from "@/lib/auth/session";
+import { NO_INDEX } from "@/lib/seo";
 
-export const metadata: Metadata = { title: "Checkout" };
+export const metadata: Metadata = { title: "Checkout", robots: NO_INDEX };
 export const dynamic = "force-dynamic";
 
 export default async function CheckoutPage() {

@@ -1,24 +1,36 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 
 import { QuickAdd } from "@/components/cart/add-to-bag";
+import { JsonLd } from "@/components/seo/json-ld";
 import { LinkButton } from "@/components/ui/button";
 import { IndexRow } from "@/components/ui/links";
 import { Plate } from "@/components/ui/plate";
 import { Eyebrow } from "@/components/ui/typography";
 import { listCategories, listFeatured } from "@/lib/api/catalog";
-import { aiEnabled } from "@/lib/store";
+import { identitySchema, OPEN_GRAPH_DEFAULTS, SITE_DESCRIPTION, SITE_TITLE } from "@/lib/seo";
+import { aiEnabled, HERO_LINES } from "@/lib/store";
+
+export const metadata: Metadata = {
+  alternates: { canonical: "/" },
+  openGraph: {
+    ...OPEN_GRAPH_DEFAULTS,
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
+    url: "/",
+  },
+};
 
 // ISR: CDN-cached HTML is served whether or not the Render backend is awake, so a cold
 // backend degrades data freshness rather than blocking the page.
 export const revalidate = 300;
-
-const HERO_LINES = ["Everything Lebanon", "makes well, in", "one small store."];
 
 export default async function HomePage() {
   const [categories, featured] = await Promise.all([listCategories(), listFeatured()]);
 
   return (
     <>
+      <JsonLd data={identitySchema()} />
       {/* The thesis. بيت — "home" — set enormous and quiet behind it: the most characteristic
           thing in this store's world, and proof the layout holds Arabic script long before
           the storefront is translated. */}

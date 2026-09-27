@@ -1,8 +1,12 @@
+import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
 import { MenuDismiss } from "@/components/behaviour/menu-dismiss";
 import { SiteFooter } from "@/components/layout/site-footer";
 import { SiteHeader } from "@/components/layout/site-header";
+import { NO_INDEX } from "@/lib/seo";
+
+export const metadata: Metadata = { robots: NO_INDEX };
 
 // Same shell as the storefront; auth pages are a separate route group only so they can never
 // be mistaken for cacheable storefront routes.

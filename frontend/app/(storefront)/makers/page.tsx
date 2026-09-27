@@ -4,8 +4,14 @@ import Link from "next/link";
 import { LinkButton } from "@/components/ui/button";
 import { Eyebrow } from "@/components/ui/typography";
 import { PLACES, placeSlug } from "@/lib/provenance";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = { title: "The makers" };
+export const metadata: Metadata = pageMetadata({
+  title: "The makers",
+  description:
+    "The presses, kilns, kitchens and workshops behind BEIT, from olive oil in Koura to soap in Tripoli and glass in Sarafand. No importers and no house label.",
+  path: "/makers",
+});
 
 export default function MakersPage() {
   return (

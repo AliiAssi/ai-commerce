@@ -4,8 +4,14 @@ import Link from "next/link";
 import { LinkButton } from "@/components/ui/button";
 import { Eyebrow } from "@/components/ui/typography";
 import { STORE_NAME } from "@/lib/store";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = { title: "About" };
+export const metadata: Metadata = pageMetadata({
+  title: "About",
+  description:
+    "BEIT means home. A small store with one idea: everything Lebanon makes well, gathered onto a few shelves and sourced from the people who make it.",
+  path: "/about",
+});
 
 export default function AboutPage() {
   return (

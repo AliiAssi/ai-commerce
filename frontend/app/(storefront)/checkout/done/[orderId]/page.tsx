@@ -8,8 +8,9 @@ import { ApiError } from "@/lib/api/client";
 import { getOrder } from "@/lib/api/orders";
 import { getToken } from "@/lib/auth/session";
 import { formatDateTime } from "@/lib/format";
+import { NO_INDEX } from "@/lib/seo";
 
-export const metadata: Metadata = { title: "Order confirmed" };
+export const metadata: Metadata = { title: "Order confirmed", robots: NO_INDEX };
 export const dynamic = "force-dynamic";
 
 export default async function OrderConfirmationPage(props: {

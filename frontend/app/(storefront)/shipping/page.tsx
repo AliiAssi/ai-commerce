@@ -3,8 +3,14 @@ import Link from "next/link";
 
 import { LinkButton } from "@/components/ui/button";
 import { Eyebrow } from "@/components/ui/typography";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = { title: "Shipping & returns" };
+export const metadata: Metadata = pageMetadata({
+  title: "Shipping & returns",
+  description:
+    "How ordering works at BEIT, a working demonstration store: checkout runs end to end against simulated payments, so nothing is ever charged or shipped.",
+  path: "/shipping",
+});
 
 export default function ShippingPage() {
   return (
