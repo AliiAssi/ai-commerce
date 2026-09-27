@@ -9,6 +9,7 @@ from sqlalchemy import text
 
 from app.application.iservices.iai_gateway import IAIGateway
 from app.application.jobs import schedule
+from app.core.alerts import install_alerts
 from app.core.config import load_settings_or_exit
 from app.core.container import container
 from app.core.logging import RequestContextMiddleware, setup_logging
@@ -37,6 +38,7 @@ logger = logging.getLogger(__name__)
 def create_app() -> FastAPI:
     settings = load_settings_or_exit()
     setup_logging(settings.ENVIRONMENT)
+    alerts = install_alerts(settings, "web")
     configure(container, settings)
 
     scheduler = Scheduler()
@@ -51,6 +53,8 @@ def create_app() -> FastAPI:
         await _close_ai_gateway()
         if container.engine is not None:
             await container.engine.dispose()
+        if alerts is not None:
+            alerts.close()
 
     app = FastAPI(title="BEIT", version="0.1.0", lifespan=lifespan)
     app.add_middleware(RequestContextMiddleware)

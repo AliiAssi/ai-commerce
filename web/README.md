@@ -27,6 +27,7 @@ cp ../.env.example ../.env # one shared .env at the repo root, used by both serv
 | `AI_SERVICE_URL`, `INTERNAL_API_KEY` | no | enable the chat proxy; without them `/api/v1/ai/chat` returns `503 ai_unavailable` and the store works normally |
 | `SEED_ADMIN_EMAIL`, `SEED_ADMIN_PASSWORD` | no | the account `seed_catalog` promotes to admin |
 | `TEST_DATABASE_URL` | no | a **second** database; the integration suite skips without it |
+| `ALERTS_DISCORD_WEBHOOK_URL` | no | posts warnings and errors to a Discord channel; empty turns alerts off. `ALERTS_MIN_LEVEL` (default `WARNING`) and `ALERTS_COOLDOWN_SECONDS` (default 900) tune it |
 
 ## Run
 

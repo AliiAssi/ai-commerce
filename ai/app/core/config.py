@@ -54,6 +54,10 @@ class Settings(DatabaseSettings):
 
     STORE_NAME: str = "BEIT"
 
+    ALERTS_DISCORD_WEBHOOK_URL: str = ""
+    ALERTS_MIN_LEVEL: Literal["WARNING", "ERROR", "CRITICAL"] = "WARNING"
+    ALERTS_COOLDOWN_SECONDS: float = Field(default=900.0, gt=0)
+
     SMART_SEARCH_ENABLED: bool = False
 
     EMBEDDING_PROVIDER: str = ""

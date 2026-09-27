@@ -12,6 +12,7 @@ from app.application.iservices.iindex_service import IIndexService
 from app.application.llm.embedding_providers import EmbeddingProviders
 from app.application.services.index_worker import IndexWorker
 from app.application.tools.registry import ToolRegistry
+from app.core.alerts import install_alerts
 from app.core.auth import MCPAuthMiddleware
 from app.core.config import Settings, load_settings_or_exit
 from app.core.container import container, open_scope
@@ -126,6 +127,7 @@ async def verify_search_lexicon(settings: Settings) -> None:
 def create_app() -> FastAPI:
     settings = load_settings_or_exit()
     setup_logging(settings.ENVIRONMENT)
+    alerts = install_alerts(settings, "ai")
     configure(container, settings)
 
     mcp = build_mcp_server(
@@ -149,6 +151,8 @@ def create_app() -> FastAPI:
             await worker.stop()
             if container.engine is not None:
                 await container.engine.dispose()
+            if alerts is not None:
+                alerts.close()
 
     app = FastAPI(title="BEIT", version="0.1.0", lifespan=lifespan)
     app.add_middleware(RequestContextMiddleware)

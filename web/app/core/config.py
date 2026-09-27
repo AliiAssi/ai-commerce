@@ -60,6 +60,10 @@ class Settings(DatabaseSettings):
 
     SCHEDULER_ENABLED: bool = True
 
+    ALERTS_DISCORD_WEBHOOK_URL: str = ""
+    ALERTS_MIN_LEVEL: Literal["WARNING", "ERROR", "CRITICAL"] = "WARNING"
+    ALERTS_COOLDOWN_SECONDS: float = Field(default=900.0, gt=0)
+
     #  Smart search
     SMART_SEARCH_ROUTING_ENABLED: bool = False
     # The outermost limit on a storefront search, and the only one that is actually enforced end
