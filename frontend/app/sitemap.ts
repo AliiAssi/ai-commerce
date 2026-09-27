@@ -6,12 +6,30 @@ import { absoluteUrl } from "@/lib/seo";
 
 export const revalidate = 3600;
 
+const XML_ENTITIES: Record<string, string> = {
+  "&": "&amp;",
+  "<": "&lt;",
+  ">": "&gt;",
+  '"': "&quot;",
+  "'": "&apos;",
+};
+
+// Next.js writes these strings into the XML verbatim, and an image URL carrying a raw "&"
+// makes the whole sitemap unparseable.
+function escapeUrl(url: string): string {
+  return url.replace(/[&<>"']/g, (char) => XML_ENTITIES[char]);
+}
+
+function loc(path: string): string {
+  return escapeUrl(absoluteUrl(path));
+}
+
 const PAGES: MetadataRoute.Sitemap = [
-  { url: absoluteUrl("/"), changeFrequency: "weekly", priority: 1 },
-  { url: absoluteUrl("/catalog"), changeFrequency: "daily", priority: 0.9 },
-  { url: absoluteUrl("/about"), changeFrequency: "monthly", priority: 0.5 },
-  { url: absoluteUrl("/makers"), changeFrequency: "monthly", priority: 0.5 },
-  { url: absoluteUrl("/shipping"), changeFrequency: "yearly", priority: 0.3 },
+  { url: loc("/"), changeFrequency: "weekly", priority: 1 },
+  { url: loc("/catalog"), changeFrequency: "daily", priority: 0.9 },
+  { url: loc("/about"), changeFrequency: "monthly", priority: 0.5 },
+  { url: loc("/makers"), changeFrequency: "monthly", priority: 0.5 },
+  { url: loc("/shipping"), changeFrequency: "yearly", priority: 0.3 },
 ];
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
@@ -26,15 +44,15 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   return [
     ...PAGES,
     ...categories.map((category) => ({
-      url: absoluteUrl(`/catalog?category=${category.slug}`),
+      url: loc(`/catalog?category=${category.slug}`),
       changeFrequency: "weekly" as const,
       priority: 0.8,
     })),
     ...products.map((product) => ({
-      url: absoluteUrl(`/products/${product.id}`),
+      url: loc(`/products/${product.id}`),
       changeFrequency: "weekly" as const,
       priority: 0.7,
-      images: product.image_url ? [product.image_url] : undefined,
+      images: product.image_url ? [escapeUrl(product.image_url)] : undefined,
     })),
   ];
 }
