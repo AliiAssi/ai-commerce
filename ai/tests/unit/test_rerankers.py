@@ -4,6 +4,7 @@ import httpx
 import pytest
 
 from app.application.dtos.search_dto import SearchIntent
+from app.application.rerank.cached_reranker import CachedReranker
 from app.application.rerank.hf_reranker import HuggingFaceReranker
 from app.application.rerank.ireranker import (
     ERROR_BAD_REQUEST,
@@ -422,10 +423,17 @@ class TestTheRegistryWiring:
         built = _build_reranker(settings(RERANKER_PROVIDER=""))
         assert isinstance(built, PassthroughReranker)
 
-    def test_a_configured_provider_is_wrapped_in_its_breaker(self):
+    def test_a_configured_provider_is_wrapped_in_its_breaker_then_the_cache(self):
         built = _build_reranker(settings(RERANKER_PROVIDER="openrouter"))
-        assert isinstance(built, ResilientReranker)
+        assert isinstance(built, CachedReranker)
+        assert isinstance(built._inner, ResilientReranker)
         assert built.version == "openrouter:nvidia/llama-nemotron-rerank-vl-1b-v2:free"
+
+    def test_a_zero_cache_ttl_leaves_the_cache_out(self):
+        built = _build_reranker(
+            settings(RERANKER_PROVIDER="openrouter", SEARCH_RERANK_CACHE_TTL_SECONDS=0)
+        )
+        assert isinstance(built, ResilientReranker)
 
     def test_an_unknown_provider_name_fails_loudly_at_boot(self):
         with pytest.raises(ValueError, match="Unknown primary reranker provider"):
@@ -498,8 +506,10 @@ class TestTheFallbackChain:
                 RERANKER_FALLBACK_MODEL="nvidia/llama-nemotron-rerank-vl-1b-v2:free",
             )
         )
-        assert isinstance(built, RerankerChain)
-        assert built._primary._breaker is not built._fallback._breaker
+        assert isinstance(built, CachedReranker)
+        chain = built._inner
+        assert isinstance(chain, RerankerChain)
+        assert chain._primary._breaker is not chain._fallback._breaker
         assert built.version == (
             "hf:BAAI/bge-reranker-v2-m3+openrouter:nvidia/llama-nemotron-rerank-vl-1b-v2:free"
         )

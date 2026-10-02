@@ -13,6 +13,7 @@ from app.application.llm.ollama_client import OllamaClient
 from app.application.llm.openai_embedding_client import OpenAICompatibleEmbeddingClient
 from app.application.llm.resilient_client import ResilientLLMClient
 from app.application.llm.resilient_embedding_client import ResilientEmbeddingClient
+from app.application.rerank.cached_reranker import CachedReranker
 from app.application.rerank.hf_reranker import HuggingFaceReranker
 from app.application.rerank.ireranker import IReranker, PassthroughReranker
 from app.application.rerank.openrouter_reranker import OpenRouterReranker
@@ -124,23 +125,29 @@ def _build_reranker(settings: Settings) -> IReranker:
         )
         return ResilientReranker(adapter(scoped), settings, name=f"{slot}:{provider}:{model}")
 
-    primary = build(
+    reranker = build(
         settings.RERANKER_PROVIDER,
         settings.RERANKER_HOST,
         settings.RERANKER_API_KEY,
         settings.RERANKER_MODEL,
         slot="primary",
     )
-    if not settings.RERANKER_FALLBACK_PROVIDER:
-        return primary
-    fallback = build(
-        settings.RERANKER_FALLBACK_PROVIDER,
-        settings.RERANKER_FALLBACK_HOST,
-        settings.RERANKER_FALLBACK_API_KEY,
-        settings.RERANKER_FALLBACK_MODEL,
-        slot="fallback",
+    if settings.RERANKER_FALLBACK_PROVIDER:
+        fallback = build(
+            settings.RERANKER_FALLBACK_PROVIDER,
+            settings.RERANKER_FALLBACK_HOST,
+            settings.RERANKER_FALLBACK_API_KEY,
+            settings.RERANKER_FALLBACK_MODEL,
+            slot="fallback",
+        )
+        reranker = RerankerChain(reranker, fallback)
+    if not settings.SEARCH_RERANK_CACHE_TTL_SECONDS:
+        return reranker
+    return CachedReranker(
+        reranker,
+        ttl_seconds=settings.SEARCH_RERANK_CACHE_TTL_SECONDS,
+        max_entries=settings.SEARCH_RERANK_CACHE_MAX_ENTRIES,
     )
-    return RerankerChain(primary, fallback)
 
 
 def configure(container: Container, settings: Settings) -> None:

@@ -132,6 +132,8 @@ class Settings(DatabaseSettings):
 
     SEARCH_QUERY_CACHE_TTL_SECONDS: int = Field(default=86_400, ge=0)
     SEARCH_QUERY_CACHE_PRUNE_SECONDS: float = Field(default=3600.0, gt=0)
+    SEARCH_RERANK_CACHE_TTL_SECONDS: int = Field(default=3600, ge=0)
+    SEARCH_RERANK_CACHE_MAX_ENTRIES: int = Field(default=512, ge=1)
     SEARCH_EVENT_QUERY_RETENTION_DAYS: int = Field(default=30, ge=1)
     SEARCH_EVENT_METRIC_RETENTION_DAYS: int = Field(default=365, ge=1)
 
