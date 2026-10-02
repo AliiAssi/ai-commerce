@@ -1,0 +1,16 @@
+[Unit]
+Description=ai (FastAPI retrieval/search service)
+After=network.target web.service
+
+[Service]
+Type=simple
+User=username
+WorkingDirectory=/home/username/ai-commerce/ai
+EnvironmentFile=/home/username/ai-commerce/.env
+ExecStart=/home/username/.local/bin/uv run uvicorn app.main:app --host 127.0.0.1 --port 8001
+Restart=always
+RestartSec=3
+SuccessExitStatus=143
+
+[Install]
+WantedBy=multi-user.target

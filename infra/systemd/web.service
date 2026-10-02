@@ -1,0 +1,16 @@
+[Unit]
+Description=web (FastAPI storefront API)
+After=network.target
+
+[Service]
+Type=simple
+User=username
+WorkingDirectory=/home/username/ai-commerce/web
+EnvironmentFile=/home/username/ai-commerce/.env
+ExecStart=/home/username/.local/bin/uv run uvicorn app.main:app --host 127.0.0.1 --port 8000
+Restart=always
+RestartSec=3
+SuccessExitStatus=143
+
+[Install]
+WantedBy=multi-user.target
