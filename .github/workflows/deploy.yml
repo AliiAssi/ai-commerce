@@ -8,47 +8,29 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: deploy-vm
+  group: deploy
   cancel-in-progress: false
 
 permissions:
   contents: read
   statuses: read
 
+env:
+  SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+
 jobs:
-  vm:
+  backend:
     if: >-
       github.event_name == 'workflow_dispatch' ||
       (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-    env:
-      SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
         with:
           sparse-checkout: infra/deploy
 
-      # next build prerenders against the live API, so the VM must not restart mid-build
-      - name: Wait for the Vercel production build
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          for _ in $(seq 1 60); do
-            state=$(curl -fsS -H "Authorization: Bearer $GH_TOKEN" \
-              "https://api.github.com/repos/${{ github.repository }}/commits/$SHA/status" \
-              | jq -r '[.statuses[] | select(.context == "Vercel")][0].state // "missing"')
-            echo "Vercel: $state"
-            case "$state" in
-              success) exit 0 ;;
-              failure | error) echo "::error::Vercel build failed, so the VM is left as it is"; exit 1 ;;
-            esac
-            sleep 20
-          done
-          echo "::error::Vercel build did not finish within 20 minutes"
-          exit 1
-
-      - name: Deploy to the VM
+      - name: Deploy web and ai to the VM
         env:
           VM_SSH_KEY: ${{ secrets.VM_SSH_KEY }}
         run: |
@@ -60,3 +42,47 @@ jobs:
             -o StrictHostKeyChecking=yes \
             -o UserKnownHostsFile=infra/deploy/known_hosts \
             username@ai-commerce.duckdns.org "$SHA"
+
+  frontend:
+    needs: backend
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      GH_TOKEN: ${{ github.token }}
+      API: https://api.github.com/repos/${{ github.repository }}
+    steps:
+      # the hook always builds the tip of main, so an older run leaves it to the newer one
+      - name: Check this is still the newest commit on main
+        id: tip
+        run: |
+          tip=$(curl -fsS -H "Authorization: Bearer $GH_TOKEN" "$API/commits/main" | jq -r .sha)
+          if [ "$tip" != "$SHA" ]; then
+            echo "main has moved on to ${tip:0:7}; its own run will publish the frontend"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Trigger the Vercel production build
+        if: steps.tip.outputs.skip != 'true'
+        env:
+          VERCEL_DEPLOY_HOOK: ${{ secrets.VERCEL_DEPLOY_HOOK }}
+        run: |
+          date -u +%Y-%m-%dT%H:%M:%SZ > triggered_at
+          curl -fsS -X POST "$VERCEL_DEPLOY_HOOK" | jq -c '.job | {id, state}'
+
+      - name: Wait for the Vercel production build
+        if: steps.tip.outputs.skip != 'true'
+        run: |
+          since=$(cat triggered_at)
+          for _ in $(seq 1 60); do
+            state=$(curl -fsS -H "Authorization: Bearer $GH_TOKEN" "$API/commits/$SHA/statuses?per_page=100" \
+              | jq -r --arg since "$since" \
+                '[.[] | select(.context == "Vercel" and .created_at >= $since)][0].state // "waiting"')
+            echo "Vercel: $state"
+            case "$state" in
+              success) exit 0 ;;
+              failure | error) echo "::error::Vercel production build failed"; exit 1 ;;
+            esac
+            sleep 20
+          done
+          echo "::error::Vercel build did not finish within 20 minutes"
+          exit 1

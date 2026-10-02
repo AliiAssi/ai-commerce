@@ -8,6 +8,12 @@ resource "vercel_project" "beit" {
     type              = "github"
     repo              = "AliiAssi/ai-commerce"
     production_branch = "main"
+    deploy_hooks = [
+      {
+        name = "github-actions-after-backend"
+        ref  = "main"
+      },
+    ]
   }
 
   vercel_authentication = {
