@@ -15,4 +15,12 @@ __pycache__/
 .idea/
 .vscode/
 
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.tfvars
+infra/terraform/.gcloud/
+
 docs/
+dev_docs/
