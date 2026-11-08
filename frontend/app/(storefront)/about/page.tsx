@@ -53,6 +53,16 @@ export default function AboutPage() {
         </section>
 
         <section>
+          <h2 className="mb-3 font-serif text-2xl tracking-snug">The map on the home page</h2>
+          <p className="leading-relaxed text-ink-muted">
+            The relief under بيت is Lebanon&apos;s real terrain, seen from the Bekaa with north
+            on the right. Elevation data courtesy of the U.S. Geological Survey (SRTM and
+            GMTED2010), served by the open Terrain Tiles dataset; the border is from
+            geoBoundaries.
+          </p>
+        </section>
+
+        <section>
           <h2 className="mb-3 font-serif text-2xl tracking-snug">A note on this storefront</h2>
           <p className="leading-relaxed text-ink-muted">
             {STORE_NAME} is a working demonstration store. Every part of it functions, the

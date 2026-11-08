@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { QuickAdd } from "@/components/cart/add-to-bag";
+import { HeroMark } from "@/components/hero/hero-mark";
 import { JsonLd } from "@/components/seo/json-ld";
 import { LinkButton } from "@/components/ui/button";
 import { IndexRow } from "@/components/ui/links";
@@ -31,17 +32,9 @@ export default async function HomePage() {
   return (
     <>
       <JsonLd data={identitySchema()} />
-      {/* The thesis. بيت — "home" — set enormous and quiet behind it: the most characteristic
-          thing in this store's world, and proof the layout holds Arabic script long before
-          the storefront is translated. */}
       <section className="relative -mx-4 mb-16 overflow-hidden border-b border-border px-4">
-        <span
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-e-0 top-1/2 -translate-y-1/2 font-serif text-mark leading-none text-ink opacity-5 select-none"
-        >
-          بيت
-        </span>
-        <div className="relative py-16 md:py-24">
+        <HeroMark className="-mx-4 h-64 [--mark-offset:0] [--mark-span:0.94] md:h-80 xl:absolute xl:inset-0 xl:mx-0 xl:h-auto xl:[--mark-offset:0.225] xl:[--mark-span:0.52]" />
+        <div className="relative pt-6 pb-16 md:pb-24 xl:pt-24">
           <h1 className="max-w-[14ch] font-serif text-display leading-[1.02] tracking-tight">
             {HERO_LINES.map((line, i) => (
               <span key={line} className="mask">
