@@ -50,9 +50,11 @@ class Settings(DatabaseSettings):
     MAX_TOOL_ITERATIONS: int = 5
     MAX_TOKENS_PER_REPLY: int = 1024
     MAX_MESSAGES_PER_SESSION: int = 40
+    MAX_PRODUCT_CARDS: int = Field(default=6, ge=1, le=20)
     LLM_TIMEOUT_SECONDS: float = 60.0
 
     STORE_NAME: str = "BEIT"
+    STOREFRONT_URL: str = "https://beit-lebanon.vercel.app"
 
     ALERTS_DISCORD_WEBHOOK_URL: str = ""
     ALERTS_MIN_LEVEL: Literal["WARNING", "ERROR", "CRITICAL"] = "WARNING"

@@ -20,6 +20,9 @@ def format_sse(event: ChatStreamEventDTO) -> str:
         payload["text"] = event.text or ""
     elif event.type == "tool":
         payload["name"] = event.name
+    elif event.type == "products":
+        payload["products"] = [p.model_dump(mode="json") for p in event.products or []]
+        payload["more"] = event.more.model_dump(mode="json") if event.more else None
     elif event.type == "done":
         payload["session_id"] = str(event.session_id) if event.session_id else None
     elif event.type == "error":

@@ -71,4 +71,22 @@ describe("createFrameParser", () => {
       { type: "error", message: "Model timed out" },
     ]);
   });
+
+  it("carries a products frame's cards and see-all link through", () => {
+    const push = createFrameParser();
+    const card = {
+      id: 12,
+      name: "Wild Mountain Za'atar",
+      price: "14.50",
+      image_url: null,
+      rating_avg: "4.80",
+      review_count: 9,
+      stock: 3,
+      url: "/products/12?utm_source=assistant&utm_medium=chat",
+    };
+    const more = { total: 14, url: "/catalog?q=zaatar" };
+    expect(
+      push(`data: ${JSON.stringify({ type: "products", products: [card], more })}\n\n`),
+    ).toEqual([{ type: "products", products: [card], more }]);
+  });
 });

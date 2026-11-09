@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 from app.application.dtos.tool_dto import ToolSpec
 from app.application.tools.registry import ToolRegistry
 from app.core.container import Scope
+from app.core.links import order_ref
 from app.infrastructure.irepositories.iorder_read_repository import IOrderReadRepository
 
 _NOT_SIGNED_IN = {"error": "order lookups need a signed-in customer"}
@@ -60,6 +61,7 @@ async def _get_order_status(params: GetOrderStatusParams, scope: Scope) -> dict[
         return {"error": f"no order #{params.order_id} for this customer"}
     return {
         "order_id": order.id,
+        "ref": order_ref(order.id),
         "status": order.status,
         "updated_at": order.updated_at.isoformat(),
     }

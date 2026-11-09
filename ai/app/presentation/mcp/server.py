@@ -30,9 +30,9 @@ def build_mcp_server(registry: ToolRegistry, prompts: PromptLibrary, settings: S
         streamable_http_path="/",
         transport_security=_transport_security(settings),
     )
-    catalog.register(mcp, registry)
-    orders.register(mcp, registry)
-    analytics.register(mcp, registry)
+    catalog.register(mcp, registry, settings.STOREFRONT_URL)
+    orders.register(mcp, registry, settings.STOREFRONT_URL)
+    analytics.register(mcp, registry, settings.STOREFRONT_URL)
     store_overview.register(mcp, registry, settings)
     shopping_assistant.register(mcp, prompts, settings)
     return mcp

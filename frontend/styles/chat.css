@@ -74,6 +74,10 @@
 .chat-md a:hover {
   color: rgb(var(--c-brand-hover));
 }
+.chat-md a:not([href]) {
+  color: inherit;
+  text-decoration: none;
+}
 .chat-md code {
   background: rgb(var(--c-sunk));
   border-radius: var(--radius-el);

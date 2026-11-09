@@ -211,3 +211,76 @@ async def test_reusing_own_session_is_preserved() -> None:
     again = await service.resolve_session(first.id, "  Alice@Test.com ")
 
     assert again.id == first.id
+
+
+async def test_cited_products_become_links_and_cards_and_persist_as_refs() -> None:
+    products = FakeProductReadRepository()
+    tent = products.seed("Alpha Tent", price="100.00", rating_avg="4.50", review_count=2)
+    products.seed("Alpha Stove", price="40.00")
+    llm = FakeLLMClient(
+        [
+            tool_turn("search_products", query="alpha", page_size=1),
+            answer_turn(f"Try the [Alpha Tent](product:{tent.id}) and [Ghost](product:999)."),
+        ]
+    )
+    service, chat = _build(llm, products=products)
+    session = await service.resolve_session(None, None)
+
+    events = await _collect(service, session, "something alpha")
+
+    shown = "".join(e.text or "" for e in events if e.type == "token")
+    tracking = "utm_source=assistant&utm_medium=chat"
+    assert f"[Alpha Tent](/products/{tent.id}?{tracking})" in shown
+    assert "Ghost" in shown
+    assert "999" not in shown
+
+    cards = next(e for e in events if e.type == "products")
+    assert [c.id for c in cards.products] == [tent.id]
+    assert cards.products[0].url == f"/products/{tent.id}?{tracking}"
+    assert cards.more is not None
+    assert cards.more.total == 2
+    assert cards.more.url == f"/catalog?q=alpha&sort=rating&{tracking}"
+    assert [e.type for e in events][-2:] == ["products", "done"]
+
+    stored = await chat.list_messages(session.id)
+    assert f"[Alpha Tent](product:{tent.id})" in stored[1].content
+    assert "Ghost" in stored[1].content
+    assert "999" not in stored[1].content
+
+
+async def test_refs_from_an_earlier_turn_are_not_evidence() -> None:
+    products = FakeProductReadRepository()
+    tent = products.seed("Alpha Tent")
+    llm = FakeLLMClient([answer_turn(f"The [Alpha Tent](product:{tent.id}) again.")])
+    service, _ = _build(llm, products=products)
+    session = await service.resolve_session(None, None)
+
+    events = await _collect(service, session, "that tent again")
+
+    shown = "".join(e.text or "" for e in events if e.type == "token")
+    assert "/products/" not in shown
+    assert "Alpha Tent" in shown
+    assert not any(e.type == "products" for e in events)
+
+
+async def test_category_and_order_refs_resolve_when_a_tool_returned_them() -> None:
+    products = FakeProductReadRepository()
+    products.seed("Alpha Tent", category="Outdoor", category_slug="outdoor")
+    orders = FakeOrderReadRepository()
+    mine = orders.seed("me@test.com")
+    llm = FakeLLMClient(
+        [
+            tool_turn("list_categories"),
+            tool_turn("get_order_status", order_id=mine.id),
+            answer_turn(f"[Outdoor](category:outdoor) and [order #{mine.id}](order:{mine.id})."),
+        ]
+    )
+    service, _ = _build(llm, products=products, orders=orders)
+    session = await service.resolve_session(None, "me@test.com")
+
+    events = await _collect(service, session, "categories and my order")
+
+    shown = "".join(e.text or "" for e in events if e.type == "token")
+    assert "[Outdoor](/catalog?category=outdoor&utm_source=assistant" in shown
+    assert f"](/account/orders/{mine.id}?utm_source=assistant" in shown
+    assert not any(e.type == "products" for e in events)

@@ -5,6 +5,8 @@ import logging
 import uuid
 from collections.abc import AsyncIterator
 
+from app.application.chat.link_rewriter import LinkRewriter
+from app.application.chat.turn_references import TurnReferences
 from app.application.dtos.chat_dto import ChatMessageDTO, ChatSessionDTO, ChatStreamEventDTO
 from app.application.dtos.tool_dto import ToolContext
 from app.application.events.bus import EventBus
@@ -85,23 +87,28 @@ class ChatService(IChatService):
         calls_made: list[dict] = []
         prompt_tokens = 0
         completion_tokens = 0
+        references = TurnReferences()
 
         try:
             for _ in range(self._settings.MAX_TOOL_ITERATIONS + 1):
                 text_parts: list[str] = []
                 tool_calls: list[LLMToolCallDTO] = []
+                rewriter = LinkRewriter(references.resolve)
                 async for event in self._llm.stream(llm_messages, tools):
                     if event.type == "token" and event.text:
                         text_parts.append(event.text)
-                        yield ChatStreamEventDTO(type="token", text=event.text)
+                        if shown := rewriter.feed(event.text):
+                            yield ChatStreamEventDTO(type="token", text=shown)
                     elif event.type == "tool_call" and event.tool_call:
                         tool_calls.append(event.tool_call)
                     elif event.type == "done" and event.usage:
                         prompt_tokens += event.usage.prompt_tokens
                         completion_tokens += event.usage.completion_tokens
+                if shown := rewriter.flush():
+                    yield ChatStreamEventDTO(type="token", text=shown)
 
                 if not tool_calls:
-                    answer = "".join(text_parts)
+                    answer = rewriter.canonical
                     break
 
                 llm_messages.append(
@@ -113,8 +120,9 @@ class ChatService(IChatService):
                     calls_made.append({"name": call.name, "arguments": call.arguments})
                     yield ChatStreamEventDTO(type="tool", name=call.name)
                     result = await self._execute_tool(call, context)
+                    references.collect(result)
                     llm_messages.append(
-                        LLMMessageDTO(role="tool", content=result, tool_name=call.name)
+                        LLMMessageDTO(role="tool", content=json.dumps(result), tool_name=call.name)
                     )
             else:
                 raise AgentLoopLimitError("exceeded MAX_TOOL_ITERATIONS")
@@ -132,6 +140,12 @@ class ChatService(IChatService):
         if not answer.strip():
             answer = self._prompts.render("errors.empty_reply")
             yield ChatStreamEventDTO(type="token", text=answer)
+
+        cards = references.cards(self._settings.MAX_PRODUCT_CARDS)
+        if cards:
+            yield ChatStreamEventDTO(
+                type="products", products=cards, more=references.more(len(cards))
+            )
 
         await self._persist(session.id, message, answer, calls_made)
         self._events.publish(
@@ -158,12 +172,11 @@ class ChatService(IChatService):
         messages.append(LLMMessageDTO(role="user", content=message))
         return messages
 
-    async def _execute_tool(self, call: LLMToolCallDTO, context: ToolContext) -> str:
+    async def _execute_tool(self, call: LLMToolCallDTO, context: ToolContext) -> dict:
         try:
-            result = await self._registry.execute(call.name, call.arguments, context)
+            return await self._registry.execute(call.name, call.arguments, context)
         except ToolExecutionError as exc:
-            result = {"error": exc.message}
-        return json.dumps(result)
+            return {"error": exc.message}
 
     async def _persist(
         self, session_id: uuid.UUID, user_message: str, answer: str, calls_made: list[dict]

@@ -5,7 +5,9 @@ from typing import Any, Literal
 
 from pydantic import BaseModel
 
-ChatEventType = Literal["token", "tool", "done", "error"]
+from app.application.dtos.reference_dto import MoreResultsDTO, ProductCardDTO
+
+ChatEventType = Literal["token", "tool", "products", "done", "error"]
 
 
 class ChatMessageDTO(BaseModel):
@@ -25,3 +27,5 @@ class ChatStreamEventDTO(BaseModel):
     name: str | None = None
     session_id: uuid.UUID | None = None
     message: str | None = None
+    products: list[ProductCardDTO] | None = None
+    more: MoreResultsDTO | None = None

@@ -10,9 +10,28 @@
  * network reads, and a single read can carry several frames), and that is only cheap to prove
  * with tests if the parser can be called directly.
  */
+import type { Money } from "@/lib/api/types";
+
+export interface ChatProduct {
+  id: number;
+  name: string;
+  price: Money;
+  image_url: string | null;
+  rating_avg: Money;
+  review_count: number;
+  stock: number;
+  url: string;
+}
+
+export interface ChatMore {
+  total: number;
+  url: string;
+}
+
 export type ChatFrame =
   | { type: "token"; text?: string }
   | { type: "tool"; name?: string }
+  | { type: "products"; products?: ChatProduct[]; more?: ChatMore | null }
   | { type: "done"; session_id?: string }
   | { type: "error"; message?: string };
 

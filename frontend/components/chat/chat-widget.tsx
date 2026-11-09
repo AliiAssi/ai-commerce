@@ -3,9 +3,11 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { ChatProductCards } from "@/components/chat/chat-product-cards";
+import { trackAssistantClick } from "@/lib/client/assistant-analytics";
 import { renderMarkdown } from "@/lib/client/markdown";
 import { useSession } from "@/lib/client/session-store";
-import { createFrameParser } from "@/lib/client/sse";
+import { type ChatMore, type ChatProduct, createFrameParser } from "@/lib/client/sse";
 import { cn } from "@/lib/cn";
 
 const SESSION_KEY = "ai_chat_session";
@@ -39,6 +41,8 @@ interface Message {
   text: string;
   note?: string;
   status: Status;
+  products?: ChatProduct[];
+  more?: ChatMore | null;
 }
 
 function readSessionId(): string | null {
@@ -199,6 +203,8 @@ export function ChatWidget() {
             }
             answer += frame.text ?? "";
             patch(botId, { status: "streaming", text: answer, note: undefined });
+          } else if (frame.type === "products") {
+            patch(botId, { products: frame.products ?? [], more: frame.more ?? null });
           } else if (frame.type === "error") {
             patch(botId, {
               status: "error",
@@ -343,7 +349,7 @@ export function ChatWidget() {
           ref={scroller}
           aria-live="polite"
           aria-atomic="false"
-          className="flex-1 space-y-3 overflow-y-auto bg-surface-alt px-4 py-4"
+          className="relative flex-1 space-y-3 overflow-y-auto bg-surface-alt px-4 py-4"
         >
           {messages.length === 0 && (
             <div className="space-y-4">
@@ -379,8 +385,11 @@ export function ChatWidget() {
                 </div>
               </div>
             ) : (
-              <div key={message.id} className="flex justify-start">
+              <div key={message.id} className="flex flex-col items-start gap-2">
                 <AssistantBubble message={message} />
+                {message.status !== "error" && message.products && (
+                  <ChatProductCards products={message.products} more={message.more} />
+                )}
               </div>
             ),
           )}
@@ -479,6 +488,10 @@ function AssistantBubble({ message }: { message: Message }) {
         "chat-md max-w-[80%] rounded-card border border-border bg-surface px-3 py-2 text-sm break-words text-ink shadow-card",
         message.status === "streaming" && "chat-caret",
       )}
+      onClick={(event) => {
+        const href = (event.target as Element).closest("a")?.getAttribute("href");
+        if (href) trackAssistantClick("inline", href);
+      }}
       // sanitised in renderMarkdown; this is model output, so DOMPurify is load-bearing
       dangerouslySetInnerHTML={{ __html: renderMarkdown(message.text) }}
     />

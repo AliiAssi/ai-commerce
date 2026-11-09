@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from functools import partial
 from typing import Any
 
 from app.application.dtos.tool_dto import ToolContext
@@ -7,9 +8,11 @@ from app.application.tools.registry import ToolRegistry
 from app.presentation.mcp.tools.common import run_tool
 
 
-def register(mcp, registry: ToolRegistry) -> None:
+def register(mcp, registry: ToolRegistry, storefront_url: str = "") -> None:
+    run = partial(run_tool, storefront_url=storefront_url)
+
     async def get_order(order_id: int, user_email: str | None = None) -> dict[str, Any]:
-        return await run_tool(
+        return await run(
             registry,
             "get_order",
             {"order_id": order_id, "user_email": user_email},
@@ -17,7 +20,7 @@ def register(mcp, registry: ToolRegistry) -> None:
         )
 
     async def list_orders(user_email: str | None = None, limit: int = 10) -> dict[str, Any]:
-        return await run_tool(
+        return await run(
             registry,
             "list_orders",
             {"user_email": user_email, "limit": limit},
@@ -25,7 +28,7 @@ def register(mcp, registry: ToolRegistry) -> None:
         )
 
     async def get_order_status(order_id: int, user_email: str | None = None) -> dict[str, Any]:
-        return await run_tool(
+        return await run(
             registry,
             "get_order_status",
             {"order_id": order_id, "user_email": user_email},

@@ -12,6 +12,7 @@ from app.application.dtos.tool_dto import EmptyParams, ToolSpec
 from app.application.iservices.isearch_service import ISearchService
 from app.application.tools.registry import ToolRegistry
 from app.core.container import Scope, ScopeFactory
+from app.core.links import search_ref
 from app.infrastructure.irepositories.iproduct_read_repository import IProductReadRepository
 
 
@@ -29,10 +30,22 @@ async def _fallback_search(params: ProductSearchParams, scopes: ScopeFactory) ->
     return page.model_dump(mode="json")
 
 
+def _with_search_ref(payload: dict[str, Any], params: ProductSearchParams) -> dict[str, Any]:
+    payload["ref"] = search_ref(
+        query=params.query,
+        category_slug=params.category_slug,
+        min_price=params.min_price,
+        max_price=params.max_price,
+        in_stock_only=params.in_stock_only,
+        sort=params.sort,
+    )
+    return payload
+
+
 def _make_search_products(search: ISearchService | None):
     async def _search_products(params: ProductSearchParams, scopes: ScopeFactory) -> dict[str, Any]:
         if search is None or not params.query:
-            return await _fallback_search(params, scopes)
+            return _with_search_ref(await _fallback_search(params, scopes), params)
 
         result = await search.search(
             SearchQuery(
@@ -64,7 +77,7 @@ def _make_search_products(search: ISearchService | None):
             "degraded_reason": result.degraded_reason,
             "inferred_filters": result.inferred_filters,
         }
-        return payload
+        return _with_search_ref(payload, params)
 
     return _search_products
 

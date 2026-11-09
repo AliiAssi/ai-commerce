@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from functools import partial
 from typing import Any, Literal
 
 from app.application.dtos.tool_dto import ToolContext
@@ -7,7 +8,9 @@ from app.application.tools.registry import ToolRegistry
 from app.presentation.mcp.tools.common import run_tool
 
 
-def register(mcp, registry: ToolRegistry) -> None:
+def register(mcp, registry: ToolRegistry, storefront_url: str = "") -> None:
+    run = partial(run_tool, storefront_url=storefront_url)
+
     async def search_products(
         query: str | None = None,
         category_slug: str | None = None,
@@ -18,7 +21,7 @@ def register(mcp, registry: ToolRegistry) -> None:
         page: int = 1,
         page_size: int = 10,
     ) -> dict[str, Any]:
-        return await run_tool(
+        return await run(
             registry,
             "search_products",
             {
@@ -35,12 +38,12 @@ def register(mcp, registry: ToolRegistry) -> None:
         )
 
     async def get_product(product_id: int) -> dict[str, Any]:
-        return await run_tool(
+        return await run(
             registry, "get_product", {"product_id": product_id}, ToolContext(source="mcp")
         )
 
     async def list_categories() -> dict[str, Any]:
-        return await run_tool(registry, "list_categories", {}, ToolContext(source="mcp"))
+        return await run(registry, "list_categories", {}, ToolContext(source="mcp"))
 
     for fn in (search_products, get_product, list_categories):
         spec = registry.spec(fn.__name__)

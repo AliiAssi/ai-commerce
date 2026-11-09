@@ -3,7 +3,9 @@ from __future__ import annotations
 from datetime import datetime
 from decimal import Decimal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, computed_field
+
+from app.core.links import category_ref, order_ref, product_ref
 
 
 class CategoryReadDTO(BaseModel):
@@ -11,6 +13,11 @@ class CategoryReadDTO(BaseModel):
     name: str
     slug: str
     product_count: int
+
+    @computed_field
+    @property
+    def ref(self) -> str:
+        return category_ref(self.slug)
 
 
 class ProductReadDTO(BaseModel):
@@ -26,6 +33,11 @@ class ProductReadDTO(BaseModel):
     rating_avg: Decimal
     review_count: int
     created_at: datetime
+
+    @computed_field
+    @property
+    def ref(self) -> str:
+        return product_ref(self.id)
 
 
 class ProductPageDTO(BaseModel):
@@ -51,6 +63,11 @@ class OrderReadDTO(BaseModel):
     updated_at: datetime
     items: list[OrderItemReadDTO]
 
+    @computed_field
+    @property
+    def ref(self) -> str:
+        return order_ref(self.id)
+
 
 class ReviewReadDTO(BaseModel):
     rating: int
@@ -62,6 +79,11 @@ class CategoryProductCountDTO(BaseModel):
     name: str
     slug: str
     product_count: int
+
+    @computed_field
+    @property
+    def ref(self) -> str:
+        return category_ref(self.slug)
 
 
 class StoreStatsDTO(BaseModel):
