@@ -22,6 +22,7 @@ import {
 import { SVGLoader } from "three/addons/loaders/SVGLoader.js";
 
 import { MARK, RELIEF } from "@/components/hero/hero-mark-data";
+import { createSpin } from "@/components/hero/spin";
 
 type Mix = readonly [token: string, toward?: string, amount?: number];
 type Part =
@@ -266,9 +267,79 @@ export function mountLebanonScene(
   };
   fit();
 
+  const corners = [-1, 1].flatMap((sx) =>
+    [-1, 1].flatMap((sz) =>
+      [0, AMP * 1.2].map((y) => new Vector3((sx * WIDTH) / 2.2, y, (sz * DEPTH) / 2.4)),
+    ),
+  );
+  const projected = new Vector3();
+  const hit = { x0: 0, y0: 0, x1: 0, y1: 0 };
+  const measureHit = () => {
+    const w = canvas.clientWidth;
+    const h = canvas.clientHeight;
+    hit.x0 = hit.y0 = Infinity;
+    hit.x1 = hit.y1 = -Infinity;
+    for (const corner of corners) {
+      projected.copy(corner).project(camera);
+      const x = ((projected.x + 1) / 2) * w;
+      const y = ((1 - projected.y) / 2) * h;
+      hit.x0 = Math.min(hit.x0, x);
+      hit.x1 = Math.max(hit.x1, x);
+      hit.y0 = Math.min(hit.y0, y);
+      hit.y1 = Math.max(hit.y1, y);
+    }
+  };
+  const local = (e: PointerEvent) => {
+    const r = canvas.getBoundingClientRect();
+    return [e.clientX - r.left, e.clientY - r.top] as const;
+  };
+  const overModel = (e: PointerEvent) => {
+    const [x, y] = local(e);
+    return x >= hit.x0 && x <= hit.x1 && y >= hit.y0 && y <= hit.y1;
+  };
+
   const pointer = { x: 0, y: 0, tx: 0, ty: 0 };
+  const spin = createSpin();
+  let dragId: number | null = null;
+  let dragX = 0;
+  let dragY = 0;
+  const onDown = (e: PointerEvent) => {
+    if (dragId !== null || e.button > 0 || !overModel(e)) return;
+    if (e.pointerType === "mouse") e.preventDefault();
+    dragId = e.pointerId;
+    dragX = e.clientX;
+    dragY = e.clientY;
+    try {
+      canvas.setPointerCapture(e.pointerId);
+    } catch {
+      // the pointer is already gone; the drag still ends on pointerup
+    }
+    canvas.style.cursor = "grabbing";
+    pointer.tx = pointer.ty = 0;
+    spin.grab(e.timeStamp);
+    schedule();
+  };
+  const onDrag = (e: PointerEvent) => {
+    if (e.pointerId !== dragId) {
+      if (e.pointerType === "mouse") canvas.style.cursor = overModel(e) ? "grab" : "";
+      return;
+    }
+    const dy = e.pointerType === "touch" ? 0 : e.clientY - dragY;
+    spin.drag(e.clientX - dragX, dy, canvas.clientWidth, canvas.clientHeight, e.timeStamp);
+    dragX = e.clientX;
+    dragY = e.clientY;
+    schedule();
+  };
+  const onUp = (e: PointerEvent) => {
+    if (e.pointerId !== dragId) return;
+    dragId = null;
+    spin.release(e.timeStamp, reduced.matches);
+    canvas.style.cursor = e.pointerType === "mouse" && overModel(e) ? "grab" : "";
+    schedule();
+  };
+
   const onPointer = (e: PointerEvent) => {
-    if (reduced.matches) return;
+    if (reduced.matches || dragId !== null || e.pointerType !== "mouse") return;
     const r = canvas.getBoundingClientRect();
     const inside =
       e.clientX >= r.left &&
@@ -304,13 +375,21 @@ export function mountLebanonScene(
     pointer.y += (pointer.ty * motion - pointer.y) * (still ? 1 : 1 - Math.exp(-dt * 6));
     orbit += (pointer.x * 0.4 + Math.sin(time * 0.1) * 0.1 * motion - orbit) * k;
     tilt += (pointer.y * 0.12 - tilt) * k;
-    const el = 0.92 + tilt + (1 - easeOut(intro / INTRO_S)) * 0.3;
+    spin.step(dt);
+    const azimuth = orbit - spin.yaw;
+    const el = MathUtils.clamp(
+      0.92 + tilt + spin.pitch + (1 - easeOut(intro / INTRO_S)) * 0.3,
+      0.3,
+      1.45,
+    );
     camera.position.set(
-      TARGET.x + Math.sin(orbit) * Math.cos(el) * dist,
+      TARGET.x + Math.sin(azimuth) * Math.cos(el) * dist,
       TARGET.y + Math.sin(el) * dist,
-      TARGET.z + Math.cos(orbit) * Math.cos(el) * dist,
+      TARGET.z + Math.cos(azimuth) * Math.cos(el) * dist,
     );
     camera.lookAt(TARGET);
+    camera.updateMatrixWorld();
+    measureHit();
 
     relief.uniforms.uLift.value = easeInOut(intro / INTRO_S);
     const settle = easeOut((intro - 0.6) / (INTRO_S - 0.2));
@@ -382,6 +461,11 @@ export function mountLebanonScene(
   darkScheme.addEventListener("change", retheme);
   reduced.addEventListener("change", schedule);
   window.addEventListener("pointermove", onPointer, { passive: true });
+  canvas.addEventListener("pointerdown", onDown);
+  canvas.addEventListener("pointermove", onDrag);
+  canvas.addEventListener("pointerup", onUp);
+  canvas.addEventListener("pointercancel", onUp);
+  canvas.addEventListener("lostpointercapture", onUp);
   document.addEventListener("visibilitychange", onVisibility);
 
   return () => {
@@ -393,6 +477,12 @@ export function mountLebanonScene(
     darkScheme.removeEventListener("change", retheme);
     reduced.removeEventListener("change", schedule);
     window.removeEventListener("pointermove", onPointer);
+    canvas.removeEventListener("pointerdown", onDown);
+    canvas.removeEventListener("pointermove", onDrag);
+    canvas.removeEventListener("pointerup", onUp);
+    canvas.removeEventListener("pointercancel", onUp);
+    canvas.removeEventListener("lostpointercapture", onUp);
+    canvas.style.cursor = "";
     document.removeEventListener("visibilitychange", onVisibility);
     land.dispose();
     word.geometry.dispose();

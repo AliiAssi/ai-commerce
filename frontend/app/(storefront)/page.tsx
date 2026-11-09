@@ -34,7 +34,7 @@ export default async function HomePage() {
       <JsonLd data={identitySchema()} />
       <section className="relative -mx-4 mb-16 overflow-hidden border-b border-border px-4">
         <HeroMark className="-mx-4 h-64 [--mark-offset:0] [--mark-span:0.94] md:h-80 xl:absolute xl:inset-0 xl:mx-0 xl:h-auto xl:[--mark-offset:0.225] xl:[--mark-span:0.52]" />
-        <div className="relative pt-6 pb-16 md:pb-24 xl:pt-24">
+        <div className="pointer-events-none relative pt-6 pb-16 *:pointer-events-auto md:pb-24 xl:pt-24">
           <h1 className="max-w-[14ch] font-serif text-display leading-[1.02] tracking-tight">
             {HERO_LINES.map((line, i) => (
               <span key={line} className="mask">
@@ -46,7 +46,7 @@ export default async function HomePage() {
             Olive oil pressed in Koura. Soap cured nine months in Tripoli. Clay thrown in Beit
             Chabab. Sourced directly from the people who make it.
           </p>
-          <div className="reveal mt-10 flex flex-wrap items-center gap-6">
+          <div className="reveal mt-10 flex w-fit flex-wrap items-center gap-6">
             <LinkButton href="/catalog" size="lg">
               Browse the catalog
             </LinkButton>

@@ -55,7 +55,7 @@ export function HeroMark({ className }: { className?: string }) {
   return (
     <div
       aria-hidden="true"
-      className={cn("pointer-events-none relative select-none", className)}
+      className={cn("relative touch-pan-y touch-pinch-zoom select-none", className)}
     >
       <canvas
         ref={canvasRef}
