@@ -102,6 +102,16 @@ async def test_bad_api_key_is_fatal() -> None:
     assert exc.value.retryable is False
 
 
+async def test_payment_required_is_fatal_quota_exhaustion() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(402, json={"error": "Add usage credits"})
+
+    with pytest.raises(LLMUnavailableError) as exc:
+        await _client(handler).chat(MESSAGES)
+    assert exc.value.retryable is False
+    assert exc.value.quota_exhausted is True
+
+
 async def test_server_error_is_retryable() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(503, json={"error": "overloaded"})

@@ -126,10 +126,14 @@ class ChatService(IChatService):
                     )
             else:
                 raise AgentLoopLimitError("exceeded MAX_TOOL_ITERATIONS")
-        except LLMUnavailableError:
-            yield ChatStreamEventDTO(
-                type="error", message=self._prompts.render("errors.llm_unavailable")
-            )
+        except LLMUnavailableError as exc:
+            if exc.quota_exhausted:
+                logger.error("LLM usage quota exhausted: %s", exc)
+                key = "errors.llm_quota_exhausted"
+            else:
+                logger.error("LLM unavailable: %s", exc)
+                key = "errors.llm_unavailable"
+            yield ChatStreamEventDTO(type="error", message=self._prompts.render(key))
             return
         except AgentLoopLimitError:
             yield ChatStreamEventDTO(

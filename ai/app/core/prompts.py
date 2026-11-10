@@ -14,6 +14,7 @@ REQUIRED_KEYS = (
     "chat.session_limit_reply",
     "mcp.shopping_assistant",
     "errors.llm_unavailable",
+    "errors.llm_quota_exhausted",
     "errors.tool_loop_limit",
     "errors.empty_reply",
 )

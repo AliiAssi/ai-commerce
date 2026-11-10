@@ -56,6 +56,9 @@ mcp:
 
 errors:
   llm_unavailable: The assistant is unavailable right now can you please try again in a moment.
+  llm_quota_exhausted: >
+    This demo runs on a free AI model with a limited usage allowance, and we've
+    reached it for now. Please try again later.
   tool_loop_limit: Sorry, I couldn't work that out. Please try rephrasing.
   empty_reply: >
     Sorry — I don't have an answer for that. Could you rephrase it, or tell me what

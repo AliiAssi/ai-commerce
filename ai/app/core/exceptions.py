@@ -35,9 +35,17 @@ class LLMUnavailableError(AppError):
     status_code = 503
     code = "llm_unavailable"
 
-    def __init__(self, message: str, *, details: Any = None, retryable: bool = False) -> None:
+    def __init__(
+        self,
+        message: str,
+        *,
+        details: Any = None,
+        retryable: bool = False,
+        quota_exhausted: bool = False,
+    ) -> None:
         super().__init__(message, details=details)
         self.retryable = retryable
+        self.quota_exhausted = quota_exhausted
 
 
 class ToolExecutionError(AppError):

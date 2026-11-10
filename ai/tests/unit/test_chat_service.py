@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -43,6 +44,15 @@ class BrokenLLM:
 
     async def stream(self, messages, tools=None):
         raise LLMUnavailableError("down", retryable=True)
+        yield  # pragma: no cover - makes this an async generator
+
+
+class QuotaExhaustedLLM:
+    async def chat(self, messages, tools=None):
+        raise LLMUnavailableError("402", quota_exhausted=True)
+
+    async def stream(self, messages, tools=None):
+        raise LLMUnavailableError("402", quota_exhausted=True)
         yield  # pragma: no cover - makes this an async generator
 
 
@@ -137,6 +147,35 @@ async def test_llm_unavailable_yields_single_error() -> None:
     assert len(events) == 1
     assert events[0].type == "error"
     assert await chat.count_messages(session.id) == 0
+
+
+async def test_llm_unavailable_is_logged_as_error(caplog: pytest.LogCaptureFixture) -> None:
+    service, _ = _build(BrokenLLM())
+    session = await service.resolve_session(None, None)
+
+    with caplog.at_level(logging.ERROR, logger="app.application.services.chat_service"):
+        await _collect(service, session, "hi")
+
+    assert any(r.levelno == logging.ERROR for r in caplog.records)
+
+
+async def test_quota_exhausted_shows_demo_limit_message(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    from app.core.prompts import load_prompts
+
+    service, _ = _build(QuotaExhaustedLLM())
+    session = await service.resolve_session(None, None)
+
+    with caplog.at_level(logging.ERROR, logger="app.application.services.chat_service"):
+        events = await _collect(service, session, "hi")
+
+    assert events == [
+        ChatStreamEventDTO(
+            type="error", message=load_prompts().render("errors.llm_quota_exhausted")
+        )
+    ]
+    assert any("quota" in r.getMessage() for r in caplog.records)
 
 
 async def test_loop_cap_yields_error() -> None:

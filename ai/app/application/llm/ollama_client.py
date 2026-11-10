@@ -145,6 +145,10 @@ def _status_error(exc: httpx.HTTPStatusError) -> LLMUnavailableError:
         return LLMUnavailableError(
             "Ollama Cloud rejected the API key (check OLLAMA_API_KEY)", retryable=False
         )
+    if status == 402:
+        return LLMUnavailableError(
+            "Ollama Cloud usage limit reached (HTTP 402)", retryable=False, quota_exhausted=True
+        )
     retryable = status == 429 or status >= 500
     return LLMUnavailableError(f"Ollama Cloud error (HTTP {status})", retryable=retryable)
 
