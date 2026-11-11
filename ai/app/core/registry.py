@@ -11,6 +11,7 @@ from app.application.llm.iembedding_client import IEmbeddingClient
 from app.application.llm.illm_client import ILLMClient
 from app.application.llm.ollama_client import OllamaClient
 from app.application.llm.openai_embedding_client import OpenAICompatibleEmbeddingClient
+from app.application.llm.openrouter_client import OpenRouterClient
 from app.application.llm.resilient_client import ResilientLLMClient
 from app.application.llm.resilient_embedding_client import ResilientEmbeddingClient
 from app.application.rerank.cached_reranker import CachedReranker
@@ -47,7 +48,8 @@ from app.infrastructure.repositories.search_repository import (
     SearchRepository,
 )
 
-_LLM_PROVIDERS: dict[str, type[ILLMClient]] = {
+LLM_PROVIDERS: dict[str, type[ILLMClient]] = {
+    "openrouter": OpenRouterClient,
     "ollama": OllamaClient,
 }
 
@@ -186,7 +188,7 @@ def configure(container: Container, settings: Settings) -> None:
         ToolRegistry, build_tool_registry(bus, search=container.resolve(ISearchService))
     )
 
-    provider = _LLM_PROVIDERS[settings.LLM_PROVIDER]
+    provider = LLM_PROVIDERS[settings.LLM_PROVIDER]
     container.bind_instance(ILLMClient, ResilientLLMClient(provider(settings), settings))
 
     container.bind(IChatService, ChatService, singleton=True)

@@ -68,7 +68,7 @@ def settings(**overrides) -> Settings:
         "DATABASE_URL": "postgresql://u:p@localhost/db",
         "INTERNAL_API_KEY": "k" * 32,
         "MCP_BEARER_TOKEN": "t" * 32,
-        "OLLAMA_API_KEY": "o" * 32,
+        "LLM_API_KEY": "o" * 32,
         "RERANKER_MODEL": "nvidia/llama-nemotron-rerank-vl-1b-v2:free",
         "RERANKER_API_KEY": "secret-key",
     }

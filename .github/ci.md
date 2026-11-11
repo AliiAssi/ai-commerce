@@ -18,7 +18,7 @@ The `ai` job also runs `uv sync` inside `web/` before testing, because `ai`'s in
 tests read the store schema through migrations that live in `web/`.
 
 Nothing here needs a GitHub secret — the Postgres credentials are hardcoded test-only
-values, and no external service (Ollama, Render) is called during CI.
+values, and no external service (OpenRouter, Render) is called during CI.
 
 ## Next steps
 

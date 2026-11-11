@@ -10,7 +10,7 @@ BASE = {
     "DATABASE_URL": "postgresql://u:p@localhost:5432/db",
     "INTERNAL_API_KEY": "x" * 16,
     "MCP_BEARER_TOKEN": "y" * 16,
-    "OLLAMA_API_KEY": "dummy",
+    "LLM_API_KEY": "dummy",
 }
 
 
@@ -84,7 +84,7 @@ def test_the_semantic_floor_starts_uncalibrated():
 
 def test_the_search_models_are_configured_separately_from_the_chat_model():
     settings = make()
-    assert settings.EMBEDDING_MODEL != settings.OLLAMA_MODEL
+    assert settings.EMBEDDING_MODEL != settings.LLM_MODEL
     assert settings.EMBEDDING_MODEL == ""
 
 

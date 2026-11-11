@@ -25,7 +25,7 @@ export API_BASE_URL="http://127.0.0.1:${API_PORT}"
 # place the whole chain — browser, Next, web, ai, database — is proven end to end.
 export INTERNAL_API_KEY="e2e-internal-key-0123456789"
 export MCP_BEARER_TOKEN="e2e-mcp-token-0123456789"
-export OLLAMA_API_KEY="e2e-unused"   # chat is not driven by this suite
+export LLM_API_KEY="e2e-unused"      # chat is not driven by this suite
 export AI_SERVICE_URL="http://127.0.0.1:${AI_PORT}"
 export SMART_SEARCH_ROUTING_ENABLED=true
 

@@ -42,10 +42,11 @@ class Settings(DatabaseSettings):
     INTERNAL_API_KEY: str = Field(min_length=16)
     MCP_BEARER_TOKEN: str = Field(min_length=16)
 
-    LLM_PROVIDER: Literal["ollama"] = "ollama"
-    OLLAMA_API_KEY: str = Field(min_length=1)
-    OLLAMA_MODEL: str = "gemma4:31b-cloud"
-    OLLAMA_HOST: str = "https://ollama.com"
+    LLM_PROVIDER: Literal["openrouter", "ollama"] = "openrouter"
+    LLM_HOST: str = ""
+    LLM_API_KEY: str = Field(min_length=1)
+    LLM_MODEL: str = "google/gemma-4-31b-it:free"
+    LLM_FALLBACK_MODELS: str = ""
 
     MAX_TOOL_ITERATIONS: int = 5
     MAX_TOKENS_PER_REPLY: int = 1024
@@ -190,6 +191,10 @@ class Settings(DatabaseSettings):
                 "than the aggregate metrics derived from it"
             )
         return self
+
+    @property
+    def llm_fallback_models(self) -> list[str]:
+        return _split_csv(self.LLM_FALLBACK_MODELS)
 
     @property
     def mcp_allowed_hosts(self) -> list[str]:

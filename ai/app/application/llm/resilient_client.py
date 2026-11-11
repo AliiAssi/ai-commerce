@@ -30,7 +30,7 @@ class ResilientLLMClient(ILLMClient):
                     return await self._inner.chat(messages, tools)
             except (LLMUnavailableError, TimeoutError) as exc:
                 await self._maybe_retry(exc, attempt)
-        raise LLMUnavailableError("Ollama Cloud unavailable")
+        raise LLMUnavailableError("LLM provider unavailable")
 
     async def stream(
         self, messages: list[LLMMessageDTO], tools: list[dict[str, Any]] | None = None
@@ -61,4 +61,4 @@ class ResilientLLMClient(ILLMClient):
 def _as_unavailable(exc: Exception) -> LLMUnavailableError:
     if isinstance(exc, LLMUnavailableError):
         return exc
-    return LLMUnavailableError("Ollama Cloud timed out", retryable=True)
+    return LLMUnavailableError("LLM provider timed out", retryable=True)

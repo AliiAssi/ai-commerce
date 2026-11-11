@@ -45,7 +45,7 @@ class ToolRegistry:
     def spec(self, name: str) -> ToolSpec:
         return self._tools[name].spec
 
-    def ollama_tools(self) -> list[dict[str, Any]]:
+    def chat_tools(self) -> list[dict[str, Any]]:
         """Tools offered to the shopper-facing chat; internal ones stay out of the catalogue."""
         return [
             {

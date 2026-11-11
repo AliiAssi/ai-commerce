@@ -72,9 +72,9 @@ async def test_mcp_edge_passes_client_email_through() -> None:
     assert result["user_email"] == "client@test.com"
 
 
-def test_ollama_tools_schema_shape() -> None:
+def test_chat_tools_schema_shape() -> None:
     registry = build_fake_registry()
-    specs = registry.ollama_tools()
+    specs = registry.chat_tools()
     names = {t["function"]["name"] for t in specs}
     assert {
         "search_products",
@@ -94,7 +94,7 @@ def test_ollama_tools_schema_shape() -> None:
 
 def test_internal_tools_are_hidden_from_the_shopper_chat() -> None:
     registry = build_fake_registry()
-    names = {t["function"]["name"] for t in registry.ollama_tools()}
+    names = {t["function"]["name"] for t in registry.chat_tools()}
     assert "low_stock_products" not in names
 
 

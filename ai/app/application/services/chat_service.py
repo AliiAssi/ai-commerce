@@ -81,7 +81,7 @@ class ChatService(IChatService):
 
         context = ToolContext(source="chat", user_email=session.user_email)
         llm_messages = self._initial_messages(history, message)
-        tools = self._registry.ollama_tools()
+        tools = self._registry.chat_tools()
 
         answer = ""
         calls_made: list[dict] = []
@@ -122,7 +122,12 @@ class ChatService(IChatService):
                     result = await self._execute_tool(call, context)
                     references.collect(result)
                     llm_messages.append(
-                        LLMMessageDTO(role="tool", content=json.dumps(result), tool_name=call.name)
+                        LLMMessageDTO(
+                            role="tool",
+                            content=json.dumps(result),
+                            tool_name=call.name,
+                            tool_call_id=call.id,
+                        )
                     )
             else:
                 raise AgentLoopLimitError("exceeded MAX_TOOL_ITERATIONS")

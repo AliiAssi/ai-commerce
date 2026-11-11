@@ -35,7 +35,7 @@ BASE = {
     "DATABASE_URL": "postgresql://u:p@localhost:5432/db",
     "INTERNAL_API_KEY": "x" * 16,
     "MCP_BEARER_TOKEN": "y" * 16,
-    "OLLAMA_API_KEY": "dummy",
+    "LLM_API_KEY": "dummy",
 }
 
 

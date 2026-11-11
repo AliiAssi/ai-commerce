@@ -118,7 +118,7 @@ jobs:
       SMART_SEARCH_ROUTING_ENABLED: "true"
       INTERNAL_API_KEY: ci-internal-key-0123456789
       MCP_BEARER_TOKEN: ci-mcp-token-0123456789
-      OLLAMA_API_KEY: ci-unused
+      LLM_API_KEY: ci-unused
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

@@ -24,7 +24,7 @@ The API's address and the token never reach the browser, so there is no CORS any
 repo. `ai/` never faces the browser at all, never sees more of a customer's data than their
 own orders, and its credentials stay inside `web/`.
 
-Built with Next.js, FastAPI, SQLAlchemy, Ollama Cloud and Postgres. Deploying to Render and
+Built with Next.js, FastAPI, SQLAlchemy, OpenRouter and Postgres. Deploying to Render and
 Vercel is supported but optional — everything runs locally against any Postgres.
 
 The catalog ships seeded with demo data: real Lebanese goods (olive oil, ceramics, textiles

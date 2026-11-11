@@ -9,31 +9,21 @@ import httpx
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from app.application.llm.llm_dtos import LLMMessageDTO
 from app.core.config import get_settings
+from app.core.registry import LLM_PROVIDERS
 
 
-async def _ping_ollama() -> None:
+async def _ping_llm() -> None:
     settings = get_settings()
-    print(f"[1/2] Ollama Cloud ping ({settings.OLLAMA_MODEL})...")
-    async with httpx.AsyncClient(
-        base_url=settings.OLLAMA_HOST,
-        headers={"Authorization": f"Bearer {settings.OLLAMA_API_KEY}"},
-        timeout=httpx.Timeout(settings.LLM_TIMEOUT_SECONDS),
-    ) as client:
-        response = await client.post(
-            "/api/chat",
-            json={
-                "model": settings.OLLAMA_MODEL,
-                "messages": [{"role": "user", "content": "Reply with the single word: ok"}],
-                "stream": False,
-                "think": False,
-            },
-        )
-        response.raise_for_status()
-        data = response.json()
+    print(f"[1/2] {settings.LLM_PROVIDER} ping ({settings.LLM_MODEL})...")
+    client = LLM_PROVIDERS[settings.LLM_PROVIDER](settings)
+    reply = await client.chat(
+        [LLMMessageDTO(role="user", content="Reply with the single word: ok")]
+    )
     print(
-        f"      ok — {data.get('prompt_eval_count', 0)} prompt / "
-        f"{data.get('eval_count', 0)} completion tokens"
+        f"      ok — {reply.usage.prompt_tokens} prompt / "
+        f"{reply.usage.completion_tokens} completion tokens"
     )
 
 
@@ -73,7 +63,7 @@ async def _chat(base_url: str) -> None:
 
 async def _main() -> None:
     base_url = sys.argv[1] if len(sys.argv) > 1 else "http://127.0.0.1:8001"
-    await _ping_ollama()
+    await _ping_llm()
     await _chat(base_url)
     print("\nSMOKE PASSED")
 

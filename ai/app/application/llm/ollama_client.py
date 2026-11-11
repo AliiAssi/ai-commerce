@@ -22,11 +22,11 @@ from app.core.logging import log_llm_usage
 
 class OllamaClient(ILLMClient):
     def __init__(self, settings: Settings, client: httpx.AsyncClient | None = None) -> None:
-        self._model = settings.OLLAMA_MODEL
+        self._model = settings.LLM_MODEL
         self._num_predict = settings.MAX_TOKENS_PER_REPLY
         self._client = client or httpx.AsyncClient(
-            base_url=settings.OLLAMA_HOST,
-            headers={"Authorization": f"Bearer {settings.OLLAMA_API_KEY}"},
+            base_url=settings.LLM_HOST or "https://ollama.com",
+            headers={"Authorization": f"Bearer {settings.LLM_API_KEY}"},
             timeout=httpx.Timeout(settings.LLM_TIMEOUT_SECONDS),
         )
 
@@ -143,7 +143,7 @@ def _status_error(exc: httpx.HTTPStatusError) -> LLMUnavailableError:
     status = exc.response.status_code
     if status in (401, 403):
         return LLMUnavailableError(
-            "Ollama Cloud rejected the API key (check OLLAMA_API_KEY)", retryable=False
+            "Ollama Cloud rejected the API key (check LLM_API_KEY)", retryable=False
         )
     if status == 402:
         return LLMUnavailableError(

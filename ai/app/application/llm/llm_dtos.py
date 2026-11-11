@@ -10,12 +10,14 @@ class LLMMessageDTO:
     content: str
     tool_calls: list[LLMToolCallDTO] = field(default_factory=list)
     tool_name: str | None = None
+    tool_call_id: str | None = None
 
 
 @dataclass
 class LLMToolCallDTO:
     name: str
     arguments: dict[str, Any]
+    id: str | None = None
 
 
 @dataclass

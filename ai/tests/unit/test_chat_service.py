@@ -32,7 +32,7 @@ def _settings(**overrides) -> Settings:
         DATABASE_URL="postgresql://u:p@h/db",
         INTERNAL_API_KEY="x" * 16,
         MCP_BEARER_TOKEN="y" * 16,
-        OLLAMA_API_KEY="k",
+        LLM_API_KEY="k",
     )
     base.update(overrides)
     return Settings(**base)

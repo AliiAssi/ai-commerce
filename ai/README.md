@@ -5,14 +5,14 @@ over one shared set of tools:
 
 - an **MCP server** at `/mcp` (Streamable HTTP) that any MCP client can connect to —
   Claude Code, Claude Desktop, MCP Inspector, or your own agent;
-- a **shopping assistant** at `POST /chat` (streaming responses) powered by Ollama
-  Cloud, using live store data to answer questions.
+- a **shopping assistant** at `POST /chat` (streaming responses) powered by a model on
+  OpenRouter, using live store data to answer questions.
 
 This service only reads the store's database. It owns just its own `ai_*` tables.
 
 It never faces the browser. The chat widget in [`frontend/`](../frontend) posts to its own
 route handler, which forwards to `web/`, which calls this service with `X-Internal-Key` — so
-`OLLAMA_API_KEY` and `MCP_BEARER_TOKEN` stay server-side and a customer can never reach this
+`LLM_API_KEY` and `MCP_BEARER_TOKEN` stay server-side and a customer can never reach this
 API directly.
 
 ```
@@ -28,9 +28,14 @@ cp ../.env.example ../.env # one shared .env at the repo root, used by both serv
 ```
 
 Required in the root `.env`: `DATABASE_URL` (same database as web — any Postgres works,
-Supabase in production), `OLLAMA_API_KEY`, `MCP_BEARER_TOKEN` (min 16 chars), and
-`INTERNAL_API_KEY` (min 16 chars, same value web uses). `OLLAMA_MODEL` defaults to
-`gemma4:31b-cloud` (must support tool calling).
+Supabase in production), `LLM_API_KEY` (an OpenRouter key), `MCP_BEARER_TOKEN` (min 16
+chars), and `INTERNAL_API_KEY` (min 16 chars, same value web uses). `LLM_MODEL` defaults to
+`google/gemma-4-31b-it:free` (must support tool calling).
+
+Free models are rate-limited upstream from time to time. `LLM_FALLBACK_MODELS` takes a
+comma-separated list of models OpenRouter tries in order when `LLM_MODEL` is unavailable.
+Setting `LLM_PROVIDER=ollama` switches the assistant to Ollama Cloud instead, with
+`LLM_API_KEY` and `LLM_MODEL` holding the Ollama key and model.
 
 ## Run
 
@@ -61,7 +66,7 @@ Seed the dev database from `web/` first (`uv run python -m app.application.jobs.
 start the server, then:
 
 ```bash
-uv run python scripts/live_smoke.py              # real Ollama chat + real tool call
+uv run python scripts/live_smoke.py              # real LLM chat + real tool call
 ```
 
 Connect an MCP client to the local server:

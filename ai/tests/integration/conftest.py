@@ -21,7 +21,7 @@ if TEST_DATABASE_URL:
     os.environ["DATABASE_URL"] = TEST_DATABASE_URL
     os.environ.setdefault("INTERNAL_API_KEY", INTERNAL_API_KEY)
     os.environ.setdefault("MCP_BEARER_TOKEN", MCP_BEARER_TOKEN)
-    os.environ.setdefault("OLLAMA_API_KEY", "integration-dummy")
+    os.environ.setdefault("LLM_API_KEY", "integration-dummy")
     os.environ.setdefault("SEARCH_INDEX_WORKER_ENABLED", "false")
     if os.environ.get("RELEVANCE_LIVE") != "1":
         os.environ["SMART_SEARCH_ENABLED"] = "false"
